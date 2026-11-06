@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* Hide Next.js DevTools / Dev indicator badge */
+nextjs-portal,
+#nextjs-dev-tools,
+div[data-nextjs-dev-tools-button],
+button[data-nextjs-dev-tools-button],
+[data-nextjs-toast],
+[data-nextjs-dialog] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
 :root {
   --green: #1ed760;
   --green-hover: #1fdf64;
@@ -16,13 +29,20 @@ html, body {
   margin: 0;
   padding: 0;
   width: 100%;
-  height: 100%;
-  height: 100dvh;
-  overflow: hidden; /* Evita rolagem da página inteira */
-  background: radial-gradient(circle at 50% 20%, #093721 0%, #03180e 55%, #010804 100%);
-  color: #111111;
+  min-height: 100%;
+  background: #0a0a0a;
+  color: #ffffff;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Only lock viewport height and background when in rewards funnel */
+body:has(.app-viewport) {
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 20%, #093721 0%, #03180e 55%, #010804 100%);
 }
 
 button {
@@ -259,6 +279,12 @@ button {
   background: #ffffff;
 }
 
+@media (max-width: 440px) {
+  .messages-area {
+    padding: 16px 12px 32px 58px;
+  }
+}
+
 .scroll-anchor {
   height: 32px;
   min-height: 32px;
@@ -295,6 +321,19 @@ button {
   align-items: center;
   justify-content: center;
   transform-origin: center center;
+}
+
+@media (max-width: 440px) {
+  .chat-avatar,
+  .typing-row .chat-avatar,
+  .card-shell .chat-avatar,
+  .summary-card-shell .chat-avatar,
+  .video-card-shell .chat-avatar,
+  .receipt-shell .chat-avatar {
+    left: -48px !important;
+    width: 38px !important;
+    height: 38px !important;
+  }
 }
 
 .chat-avatar.agent-chat-avatar {
@@ -963,12 +1002,12 @@ button {
   word-break: break-word;
 }
 
-/* Interactive Name Input Card - High Clarity & Conversion */
+/* Interactive Name Input Card - High Clarity & Mobile Responsiveness */
 .name-input-card {
   background: #ffffff;
   border: 2px solid #1db954;
-  border-radius: 18px;
-  padding: 16px 18px;
+  border-radius: 16px;
+  padding: 14px;
   margin: 10px 0 16px 0;
   box-shadow: 0 8px 24px rgba(29, 185, 84, 0.16), 0 2px 6px rgba(0, 0, 0, 0.04);
   display: flex;
@@ -976,6 +1015,9 @@ button {
   gap: 12px;
   position: relative;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .name-input-header {
@@ -983,6 +1025,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  width: 100%;
 }
 
 .name-input-badge {
@@ -998,6 +1041,7 @@ button {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  flex-shrink: 0;
 }
 
 .name-input-badge .pulse-dot {
@@ -1013,22 +1057,44 @@ button {
   font-weight: 800;
   color: #111111;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.4;
+  width: 100%;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.name-input-instruction span {
+  flex: 1;
+  min-width: 0;
 }
 
 .name-input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.name-input-field-wrap {
   display: flex;
   align-items: center;
   gap: 10px;
   background: #f7faf8;
   border: 1.5px solid #d4e5da;
   border-radius: 999px;
-  padding: 4px 6px 4px 14px;
+  padding: 0 14px;
+  height: 46px;
+  width: 100%;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
-.name-input-row:focus-within {
+.name-input-field-wrap:focus-within {
   background: #ffffff;
   border-color: #1db954;
   box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.25);
@@ -1041,13 +1107,14 @@ button {
 
 .name-input-field {
   flex: 1;
+  min-width: 0;
+  width: 100%;
   border: 0;
   outline: 0;
   background: transparent;
-  font-size: 15.5px;
+  font-size: 15px;
   font-weight: 600;
   color: #111111;
-  padding: 10px 0;
 }
 
 .name-input-field::placeholder {
@@ -1056,26 +1123,29 @@ button {
 }
 
 .name-submit-btn {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px 18px;
+  gap: 8px;
+  height: 46px;
+  width: 100%;
+  padding: 0 18px;
   border-radius: 999px;
   border: 0;
   background: #1db954;
   color: #031408;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(29, 185, 84, 0.4);
   transition: all 0.15s ease;
+  box-sizing: border-box;
   flex-shrink: 0;
 }
 
 .name-submit-btn:not(:disabled):hover {
-  transform: translateY(-1px) scale(1.02);
+  transform: translateY(-1px);
   filter: brightness(1.06);
   box-shadow: 0 6px 18px rgba(29, 185, 84, 0.55);
 }
@@ -1089,11 +1159,21 @@ button {
 }
 
 .name-input-footer {
-  font-size: 11.5px;
+  font-size: 12px;
   color: #607267;
   display: flex;
-  align-items: center;
-  gap: 5px;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.35;
+  width: 100%;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.name-input-footer span {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Chat Interactive Input Bar (Standard fallback) */
@@ -1447,6 +1527,40 @@ button {
   border-radius: 12px;
   padding: 14px;
   margin-top: 6px;
+}
+
+/* VTurb Smartplayer Mobile Styling */
+vturb-smartplayer {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 auto !important;
+}
+
+.vturb-player-box {
+  width: 100%;
+  max-width: 100%;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000000;
+}
+
+.vturb-player-placeholder {
+  position: relative !important;
+  width: 100% !important;
+  background-color: #000000 !important;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.vturb-card {
+  padding: 0 !important;
+  background: #000000 !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  border: 1px solid #1c1c1c;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .video-card video {
