@@ -616,9 +616,12 @@ export default function NextOfferSpotHome() {
             <Link href="/spotify/rewards" className="hover:text-emerald-600 transition-colors">
               Evaluator Chat (/spotify/rewards)
             </Link>
-            <span className="text-slate-400">Terms</span>
-            <span className="text-slate-400">Privacy</span>
-            <span className="text-slate-400">Support</span>
+            <Link href="/politicasdeprivacidade" className="hover:text-indigo-600 transition-colors">
+              Políticas de Privacidade
+            </Link>
+            <Link href="/suporte" className="hover:text-indigo-600 transition-colors">
+              Suporte
+            </Link>
           </div>
 
           <div className="text-slate-400 text-[11px]">
