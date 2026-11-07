@@ -19,7 +19,7 @@ type Song = {
 
 type Answers = Record<string, string | undefined>;
 
-// 6 active songs in exact user-specified order and values (Total: $92.76)
+// 6 active songs in exact user-specified order and values (Total: $114.93)
 const songs: Song[] = [
   {
     id: 'adele',
@@ -27,7 +27,7 @@ const songs: Song[] = [
     artist: 'Adele',
     cover: '/covers/adele-art.jpg',
     audioUrl: '/audio/adele-track.mp3',
-    reward: 14.23,
+    reward: 17.34,
     questions: [
       'Do you listen to Adele often?',
       'Do you usually listen to Someone Like You?',
@@ -39,7 +39,7 @@ const songs: Song[] = [
     artist: 'Olivia Rodrigo',
     cover: '/covers/olivia-art.jpg',
     audioUrl: '/audio/olivia-track.mp3',
-    reward: 10.68,
+    reward: 13.85,
     questions: [
       'Do you listen to Olivia Rodrigo often?',
       'Do you usually listen to good 4 u?',
@@ -51,7 +51,7 @@ const songs: Song[] = [
     artist: 'The Weeknd',
     cover: '/covers/weeknd-art.jpg',
     audioUrl: '/audio/weeknd-track.mp3',
-    reward: 18.47,
+    reward: 22.78,
     questions: [
       'Do you listen to The Weeknd often?',
       'Do you usually listen to Blinding Lights?',
@@ -63,7 +63,7 @@ const songs: Song[] = [
     artist: 'Dua Lipa',
     cover: '/covers/dua-lipa-art.jpg',
     audioUrl: '/audio/dua-lipa-track.mp3',
-    reward: 12.91,
+    reward: 15.62,
     questions: [
       'Do you listen to Dua Lipa often?',
       'Do you usually listen to Levitating?',
@@ -75,7 +75,7 @@ const songs: Song[] = [
     artist: 'Harry Styles',
     cover: '/covers/harry-styles-art.jpg',
     audioUrl: '/audio/harry-styles-track.mp3',
-    reward: 17.36,
+    reward: 21.46,
     questions: [
       'Do you listen to Harry Styles often?',
       'Do you usually listen to As It Was?',
@@ -87,7 +87,7 @@ const songs: Song[] = [
     artist: 'Miley Cyrus',
     cover: '/covers/miley-art.jpg',
     audioUrl: '/audio/miley-track.mp3',
-    reward: 19.11,
+    reward: 23.88,
     questions: [
       'Do you listen to Miley Cyrus often?',
       'Do you usually listen to Flowers?',
@@ -291,7 +291,7 @@ function TypingIndicator({
 const PLAY_BEFORE_FADE_SECONDS = 8; // 8 seconds of playback preview before unlocking evaluation
 const FADE_DURATION = 0.5; // Smooth fade out
 const TOTAL_PLAY_TIME = PLAY_BEFORE_FADE_SECONDS + FADE_DURATION;
-const VSL_2_DELAY_SECONDS = 150; // Exatamente 2:30 (150 segundos) após o envio da VSL 2
+const VSL_2_DELAY_SECONDS = 243; // Exatamente 4:03 (243 segundos) após o envio da VSL 2
 
 /* ======================================================== */
 /* VTurb Smartplayer Component                              */
@@ -558,7 +558,7 @@ function MusicEvaluationBox({
   song,
   isConfirmed,
   lastReward,
-  totalBalance = 92.76,
+  totalBalance = 114.93,
   isFinalSong = false,
   showAvatar = true,
   onComplete,
@@ -765,7 +765,7 @@ function UserBubble({ children }: { children: React.ReactNode }) {
 
 function PaymentReceipt({
   userName,
-  totalAmount = 92.76,
+  totalAmount = 114.93,
   refNumber = 'SP-424467',
   showAvatar = true,
 }: {
@@ -911,7 +911,7 @@ function VslVideoPlayer({
   useEffect(() => {
     if (unlocked) return;
 
-    // Dispara a próxima etapa exatamente 2:30 (150 segundos) após o envio da VSL 2
+    // Dispara a próxima etapa exatamente 4:03 (243 segundos) após o envio da VSL 2
     const exactTimer = setTimeout(() => {
       triggerUnlock();
     }, VSL_2_DELAY_SECONDS * 1000);
@@ -1005,8 +1005,8 @@ function VslVideoPlayer({
       <div className="video-card vsl-video-card vturb-card" style={{ padding: 0, margin: 0 }}>
         {/* Segunda VSL — horizontal, proporção 16:9, responsiva e sem cortes */}
         <VturbPlayer
-          playerId="6aea9d2d755902dcbac7db3f"
-          scriptSrc="https://scripts.converteai.net/8876e57a-2922-426e-83f1-74b43990df6f/players/6aea9d2d755902dcbac7db3f/v4/player.js"
+          playerId="6aef5e2f6866a77b86dfc21f"
+          scriptSrc="https://scripts.converteai.net/8876e57a-2922-426e-83f1-74b43990df6f/players/6aef5e2f6866a77b86dfc21f/v4/player.js"
           aspectPadding="56.25%"
           maxWidth="100%"
         />
@@ -1231,7 +1231,7 @@ export default function Page() {
       setFinalPhase(11);
     }, 22600);
 
-    // After 3s typing -> Phase 12: Message 1 ("You have a balance of $92,76 in our app") arrives
+    // After 3s typing -> Phase 12: Message 1 ("You have a balance of $114,93 in our app") arrives
     const t6 = setTimeout(() => {
       setFinalPhase(12);
     }, 25600);
@@ -1409,7 +1409,7 @@ export default function Page() {
       setFinalPhase(48); // Phase 48: (AQUI É A VSL 2) - VSL 2 Video arrives!
     }, 6800);
 
-    // Exatamente 2:30 (150 segundos) após o envio da VSL 2, inicia os disparos da próxima etapa
+    // Exatamente 4:03 (243 segundos) após o envio da VSL 2, inicia os disparos da próxima etapa
     const t4 = setTimeout(() => {
       handleVslUnlock();
     }, 6800 + VSL_2_DELAY_SECONDS * 1000);
@@ -1582,7 +1582,7 @@ export default function Page() {
   return (
     <div className="app-viewport">
       {/* Meta Pixel & CAPI Tracker exclusively for Spotify Rewards */}
-      <MetaPixelTracker eventName="PageView" customData={{ content_name: 'Spotify Rewards Interactive Funnel', value: 92.76, currency: 'USD' }} />
+      <MetaPixelTracker eventName="PageView" customData={{ content_name: 'Spotify Rewards Interactive Funnel', value: 114.93, currency: 'USD' }} />
 
       <audio
         ref={cashAudioRef}
@@ -1670,7 +1670,7 @@ export default function Page() {
                   song={currentSong}
                   isConfirmed={isConfirmed}
                   lastReward={lastReward}
-                  totalBalance={Math.max(displayBalance, 92.76)}
+                  totalBalance={Math.max(displayBalance, 114.93)}
                   isFinalSong={songIndex === songs.length - 1}
                   showAvatar={!finalStage}
                   onComplete={handleFinishSong}
@@ -1771,7 +1771,7 @@ export default function Page() {
                       You have a balance of{' '}
                       <b>
                         $
-                        {(displayBalance || 92.76)
+                        {(displayBalance || 114.93)
                           .toFixed(2)
                           .replace('.', ',')}
                       </b>{' '}
@@ -1951,7 +1951,7 @@ export default function Page() {
 
                           <div className="name-input-footer">
                             <Info size={14} className="text-[#1db954] shrink-0 mt-0.5" />
-                            <span>This name will be printed on your official $92.76 payment voucher.</span>
+                            <span>This name will be printed on your official $114.93 payment voucher.</span>
                           </div>
                         </form>
                       )}
@@ -1999,7 +1999,7 @@ export default function Page() {
                         <b>Everything looks good, {userName}!</b>
                         <div style={{ height: 12 }} />
                         I checked our system and saw that you are <b>eligible</b> to receive your commission of{' '}
-                        <b>${(displayBalance || 92.76).toFixed(2)}</b>
+                        <b>${(displayBalance || 114.93).toFixed(2)}</b>
                       </div>
                     </MessageBubble>
                   )}
@@ -2049,7 +2049,7 @@ export default function Page() {
                   {finalPhase >= 42 && (
                     <PaymentReceipt
                       userName={userName}
-                      totalAmount={displayBalance || 92.76}
+                      totalAmount={displayBalance || 114.93}
                       refNumber="SP-424467"
                       showAvatar={finalPhase === 42}
                     />
@@ -2121,7 +2121,7 @@ export default function Page() {
                   {/* Phase 50+: Message 1 - Validation & Reserved Balance */}
                   {finalPhase >= 50 && (
                     <MessageBubble showAvatar={finalPhase === 50} isAgent={true}>
-                      🎉 <b>Congratulations!</b> Your test evaluation has been approved and your initial commission of <b>${(displayBalance || 92.76).toFixed(2)}</b> has been temporarily reserved on your case protocol.
+                      🎉 <b>Congratulations!</b> Your evaluation session has been approved and your balance of <b>${(displayBalance || 114.93).toFixed(2)}</b> is ready and reserved for withdrawal on your case protocol.
                     </MessageBubble>
                   )}
 
@@ -2130,12 +2130,13 @@ export default function Page() {
                     <TypingIndicator showAvatar={true} isAgent={true} />
                   )}
 
-                  {/* Phase 52+: Message 2 - Official Security Registration Reason */}
+                  {/* Phase 52+: Message 2 - The $9 Anti-Spam Security Filter */}
                   {finalPhase >= 52 && (
                     <MessageBubble showAvatar={finalPhase === 52} isAgent={true}>
-                      🛡️ To officially join the <b>Spotify Rewards</b> program and unlock daily earnings of <b>up to $350/day</b>, you will now proceed to the <b>Official Spotify Security Registration</b>.
+                      🛡️ To grant your official access to the partner program, there is a symbolic <b>$9.00 security entry verification</b>.
                       <br /><br />
-                      Due to high demand and strict compliance policies, Spotify requires this final verification step to prevent automated bots, multiple duplicate accounts, and fraudulent activity.
+                      <b>Why is this required?</b><br />
+                      This entry pass serves strictly as an <b>anti-spam security filter</b> to screen out bots, duplicate sign-ups, and uncommitted users, guaranteeing Spotify reserves active spots exclusively for genuine participants.
                     </MessageBubble>
                   )}
 
@@ -2144,10 +2145,13 @@ export default function Page() {
                     <TypingIndicator showAvatar={true} isAgent={true} />
                   )}
 
-                  {/* Phase 54+: Message 3 - Requirement & Immediate Release */}
+                  {/* Phase 54+: Message 3 - 100% Automatic Refund in 1-2h & Payout Release */}
                   {finalPhase >= 54 && (
                     <MessageBubble showAvatar={finalPhase === 54} isAgent={true}>
-                      ⚠️ <b>Important:</b> Complete the remaining security requirements on the next page to confirm your identity. Once verified, your <b>${(displayBalance || 92.76).toFixed(2)}</b> balance will be immediately released to your payout account.
+                      🔄 <b>100% Automatic Refund:</b><br />
+                      This <b>$9.00 amount will be automatically refunded</b> back to your card within <b>1 to 2 hours</b>. Participation costs you nothing.
+                      <br /><br />
+                      Once confirmed, the Spotify team will contact you within the next <b>24 hours</b> to begin, and your <b>${(displayBalance || 114.93).toFixed(2)}</b> balance will be immediately released to your payout account.
                     </MessageBubble>
                   )}
 
@@ -2160,7 +2164,7 @@ export default function Page() {
                   {finalPhase >= 56 && (
                     <>
                       <MessageBubble showAvatar={finalPhase >= 56} isAgent={true}>
-                        <em>(Click the button below to complete your Official Registration &amp; release your funds)</em>
+                        <em>(Click the button below to confirm your $9 refundable pass and release your ${(displayBalance || 114.93).toFixed(2)} payout)</em>
                       </MessageBubble>
 
                       <a
@@ -2179,7 +2183,7 @@ export default function Page() {
                           letterSpacing: '0.02em',
                         }}
                       >
-                        COMPLETE OFFICIAL REGISTRATION &amp; CLAIM ${(displayBalance || 92.76).toFixed(2)} ➔
+                        RELEASE ${(displayBalance || 114.93).toFixed(2)} PAYOUT ($9 REFUNDABLE PASS) ➔
                       </a>
                     </>
                   )}

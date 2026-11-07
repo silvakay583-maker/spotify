@@ -26,7 +26,7 @@ const testimonials = [
     location: 'Austin, Texas (TX)',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
     stars: 5,
-    earnings: '$92.76 withdrawn today',
+    earnings: '$114.93 withdrawn today',
     date: 'Today, at 2:22 PM',
     comment:
       "I thought it was going to be more complicated lol, but it's actually pretty easy to understand. I really like being able to do everything from my phone without having to sit in front of a computer.",
@@ -411,7 +411,7 @@ export default function SpotifyLandingPage() {
 
               <div className="bg-[#1db954]/10 p-6 rounded-2xl border border-[#1db954]/30 text-center flex flex-col justify-center items-center">
                 <span className="block text-xs font-semibold text-[#1db954] uppercase tracking-wider mb-2">Intermediate (1-2 hrs)</span>
-                <strong className="block text-2xl sm:text-3xl font-black text-[#1db954]">$92 to $180</strong>
+                <strong className="block text-2xl sm:text-3xl font-black text-[#1db954]">$114 to $180</strong>
               </div>
 
               <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 text-center flex flex-col justify-center items-center">
