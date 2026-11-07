@@ -1458,6 +1458,51 @@ export default function Page() {
     finalTimersRef.current.push(t1, t2, t3, t4, t5, t6, t7);
   };
 
+  // Track Lead / CompleteRegistration via Meta Pixel and CAPI on CTA Click
+  const handleCtaLeadClick = () => {
+    const eventId = 'lead_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    const eventData = {
+      content_name: 'Spotify Rewards Registration',
+      content_category: 'Lead Registration',
+      value: displayBalance || 92.76,
+      currency: 'USD',
+      status: 'completed_evaluation',
+    };
+
+    if (typeof window !== 'undefined') {
+      const win = window as any;
+      if (typeof win.fbq === 'function') {
+        win.fbq('track', 'Lead', eventData, { eventID: eventId });
+        win.fbq('track', 'CompleteRegistration', eventData, { eventID: eventId + '_reg' });
+      }
+
+      // Dispatch to Server-Side Conversions API (CAPI)
+      try {
+        fetch('/api/capi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_name: 'Lead',
+            event_source_url: window.location.href,
+            event_id: eventId,
+            custom_data: eventData,
+          }),
+        }).catch(() => {});
+
+        fetch('/api/capi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_name: 'CompleteRegistration',
+            event_source_url: window.location.href,
+            event_id: eventId + '_reg',
+            custom_data: eventData,
+          }),
+        }).catch(() => {});
+      } catch {}
+    }
+  };
+
   // Handle completing an evaluation:
   // Shows 4-second confirmation in the EXACT SAME box, then advances in-place to next song
   const handleFinishSong = (rewardAmount: number) => {
@@ -2167,6 +2212,7 @@ export default function Page() {
                         href="https://giftclick.org/?offer_id=1970&aff_id=208871&aff_c=1"
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={handleCtaLeadClick}
                         className="verification-btn pop-bounce"
                         style={{
                           display: 'block',
