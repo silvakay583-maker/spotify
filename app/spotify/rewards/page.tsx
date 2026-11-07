@@ -2164,7 +2164,7 @@ export default function Page() {
                       </MessageBubble>
 
                       <a
-                        href="https://giftclick.org/?offer_id=1970&aff_id=208871"
+                        href="https://giftclick.org/?offer_id=1970&aff_id=208871&aff_c=1"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="verification-btn pop-bounce"
