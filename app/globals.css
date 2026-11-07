@@ -30,8 +30,8 @@ html, body {
   padding: 0;
   width: 100%;
   min-height: 100%;
-  background: #0a0a0a;
-  color: #ffffff;
+  background: #f8fafc;
+  color: #0f172a;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;

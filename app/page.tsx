@@ -2,533 +2,628 @@
 
 import {
   ArrowRight,
+  BadgeAlert,
+  Building2,
   CheckCircle2,
+  ChevronRight,
+  Clock,
+  Compass,
   DollarSign,
+  ExternalLink,
+  Flame,
+  Globe,
   Headphones,
   Lock,
   Music2,
   Play,
+  Shield,
+  ShieldCheck,
   Sparkles,
   Star,
-  TrendingUp,
+  Tv,
+  Users,
+  Video,
+  Zap,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 
-const SPOTIFY_LOGO_URL = '/spotify-full-logo.png';
-const HERO_BANNER_URL = '/spotify-hero-banner.webp';
+interface CampaignItem {
+  id: string;
+  brand: string;
+  brandTag: string;
+  brandColor: string;
+  brandBorder: string;
+  title: string;
+  status: 'active' | 'closed';
+  statusBadge: string;
+  rewardValue: string;
+  rewardSub: string;
+  category: string;
+  slotsText: string;
+  dateBadge: string;
+  description: string;
+  highlights: string[];
+  href: string;
+  accentBg: string;
+  isHot?: boolean;
+}
 
-const testimonials = [
+const campaigns: CampaignItem[] = [
   {
-    name: 'Emily Carter',
-    location: 'Austin, Texas (TX)',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
-    stars: 5,
-    earnings: '$92.76 withdrawn today',
-    date: 'Today, at 2:22 PM',
-    comment:
-      "I thought it was going to be more complicated lol, but it's actually pretty easy to understand. I really like being able to do everything from my phone without having to sit in front of a computer.",
+    id: 'spotify-evaluator-2026',
+    brand: 'Spotify',
+    brandTag: 'Official Partner',
+    brandColor: 'text-[#107c37]',
+    brandBorder: 'border-emerald-500',
+    accentBg: 'bg-emerald-500/10',
+    title: 'Music Track & Audio Evaluator Program',
+    status: 'active',
+    statusBadge: 'Open & Recruiting',
+    rewardValue: 'Up to $350 / day',
+    rewardSub: 'Instant Payout per Batch',
+    category: 'Audio Streaming & Music QA',
+    slotsText: '7 Positions Available Today',
+    dateBadge: 'Active Right Now',
+    description:
+      'Evaluate new audio releases from top global hitmakers and independent music producers. Rate song melody, lyrics and rhythm on your phone and withdraw daily commissions directly.',
+    highlights: ['Earphones/Headphones', 'Daily Bank Transfer', 'No Experience Required'],
+    href: '/spotify',
+    isHot: true,
   },
   {
-    name: 'Jason Miller',
-    location: 'Miami, Florida (FL)',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&q=80',
-    stars: 5,
-    earnings: '$285.40 earned today',
-    date: 'Yesterday, at 7:40 PM',
-    comment:
-      "What I like most is how convenient it is. I can check things out whenever I have some free time. I was a little confused at first, but once I got the hang of it, everything made more sense.",
+    id: 'netflix-preview-qa',
+    brand: 'Netflix',
+    brandTag: 'Streaming Labs',
+    brandColor: 'text-[#e50914]',
+    brandBorder: 'border-rose-300',
+    accentBg: 'bg-rose-50',
+    title: 'Teaser & Subtitle Audience Engagement Test',
+    status: 'closed',
+    statusBadge: 'Campaign Ended (Quota Reached)',
+    rewardValue: '$45.00 / test batch',
+    rewardSub: 'Total Paid: $22,500',
+    category: 'Video Streaming & Subtitles',
+    slotsText: '500 / 500 Applicants Approved',
+    dateBadge: 'Concluded 3 Days Ago',
+    description:
+      'Evaluated 30-second localized trailers to verify subtitle synchronization, comedic timing, and viewer retention scores prior to season premieres.',
+    highlights: ['Closed Intake', 'Full Quota Reached', 'Vouchers Disbursed'],
+    href: '/spotify',
   },
   {
-    name: 'Jessica Thompson',
-    location: 'Orlando, Florida (FL)',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=160&q=80',
-    stars: 5,
-    earnings: '$350.00 daily',
-    date: '2 days ago',
-    comment:
-      "I'm still getting familiar with how everything works, but so far I think the idea is pretty interesting. I already spend a good part of my day listening to music anyway lol.",
+    id: 'amazon-shopper-panel',
+    brand: 'Amazon',
+    brandTag: 'Retail Panel',
+    brandColor: 'text-[#d97706]',
+    brandBorder: 'border-amber-300',
+    accentBg: 'bg-amber-50',
+    title: 'Consumer Grocery Receipt & Brand Pulse Panel',
+    status: 'closed',
+    statusBadge: 'Intake Closed (Waitlist Only)',
+    rewardValue: '$120.00 / month',
+    rewardSub: 'Recurring Monthly Balance',
+    category: 'Retail Analytics & Receipts',
+    slotsText: 'Capacity Cap Reached',
+    dateBadge: 'Closed Last Week',
+    description:
+      'Select monthly consumer group uploading shopping receipts and sharing brief opinions on weekly grocery items with guaranteed electronic gift cards.',
+    highlights: ['Intake Cap 1,200', 'Waitlist Active', 'Next Intake Q3'],
+    href: '/spotify',
   },
   {
-    name: 'Michael Anderson',
-    location: 'Phoenix, Arizona (AZ)',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&q=80',
-    stars: 5,
-    earnings: '$178.50 withdrawn',
-    date: 'Today, at 11:05 AM',
-    comment:
-      "I like the concept, especially being able to use it right from my phone. I just wish some of the instructions were a little more straightforward, but overall it's been easy to navigate.",
+    id: 'tiktok-sound-curator',
+    brand: 'TikTok',
+    brandTag: 'Creator Insights',
+    brandColor: 'text-[#0ea5e9]',
+    brandBorder: 'border-sky-300',
+    accentBg: 'bg-sky-50',
+    title: 'Viral Audio Soundbite & Trend Categorization',
+    status: 'closed',
+    statusBadge: 'Campaign Completed',
+    rewardValue: '$28.50 / hour',
+    rewardSub: 'Total Paid: $14,200',
+    category: 'Social Media & Audio Trends',
+    slotsText: '250 / 250 Verified',
+    dateBadge: 'Closed 2 Weeks Ago',
+    description:
+      'Screened 15-second background audio clips to classify trending music subgenres and ensure platform safety standards before viral hashtag rollouts.',
+    highlights: ['Completed Round', 'All Funds Released', 'Archived'],
+    href: '/spotify',
   },
 ];
 
-const faqs = [
-  {
-    question: 'How much can I really earn as a music evaluator?',
-    answer:
-      'Earnings vary depending on the number of completed song evaluations. On average, active evaluators earn between $70 and up to $350 per day, depending on demand from partner record labels and producers.',
-  },
-  {
-    question: 'Do I need prior experience in the music industry?',
-    answer:
-      'No! The program specifically seeks the genuine perspective of everyday listeners. You just need to listen carefully and answer whether you like the melody, lyrics, or rhythm.',
-  },
-  {
-    question: 'Why does Spotify pay listeners to evaluate music?',
-    answer:
-      'Major labels and independent producers invest heavily to test audience retention and viral potential before launching tracks onto major global playlists. Your direct feedback saves millions in traditional marketing costs.',
-  },
-  {
-    question: 'How and when do I receive my accumulated money?',
-    answer:
-      'When you complete your daily evaluation session, an official signed payment receipt is generated right in the chat and funds are immediately cleared for transfer to your payout account.',
-  },
-  {
-    question: 'Can I complete the evaluations on my smartphone?',
-    answer:
-      'Yes! The system is 100% optimized for mobile phones (Android and iOS) as well as tablets and desktop computers. All you need is an internet connection and headphones.',
-  },
-];
+export default function NextOfferSpotHome() {
+  const [filter, setFilter] = useState<'all' | 'active' | 'closed'>('all');
 
-export default function LandingPage() {
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-
-  const toggleFaq = (index: number) => {
-    setOpenFaq(openFaq === index ? null : index);
-  };
+  const filtered = campaigns.filter((c) => {
+    if (filter === 'active') return c.status === 'active';
+    if (filter === 'closed') return c.status === 'closed';
+    return true;
+  });
 
   return (
-    <div className="landing-root min-h-screen bg-[#0a0a0a] text-white selection:bg-[#1db954] selection:text-black">
-      {/* Top Urgency Banner */}
-      <aside aria-label="Urgency Banner" className="bg-gradient-to-r from-[#1db954]/20 via-[#1db954] to-[#128a3a] text-black font-semibold text-xs sm:text-sm py-2 px-4 text-center">
-        <div className="max-w-6xl mx-auto flex items-center justify-center gap-2">
-          <span className="flex h-2 w-2 rounded-full bg-black animate-pulse" />
-          <span>
-            <strong>Open Slots Today:</strong> The Spotify Rewards program is selecting new evaluators to earn <strong>up to $350/day</strong>.
-          </span>
+    <div className="min-h-screen bg-[#f3f6fb] text-slate-800 selection:bg-indigo-500 selection:text-white font-sans">
+      {/* Top Lively Color Notification Ribbon */}
+      <aside className="bg-gradient-to-r from-indigo-600 via-blue-600 to-emerald-600 text-white text-xs py-2.5 px-4 shadow-sm">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+          <div className="flex items-center gap-2 font-medium">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-300 animate-pulse" />
+            <span>
+              <strong>Next Offer Spot Hub:</strong> Verified partner campaigns, remote micro-tasks, and real-time payouts.
+            </span>
+          </div>
+          <div className="flex items-center gap-3 text-[11px] font-semibold text-indigo-100">
+            <span className="bg-white/15 px-2.5 py-0.5 rounded-full backdrop-blur-xs">1 Active Campaign Today</span>
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">Zero Application Fees</span>
+          </div>
         </div>
       </aside>
 
-      {/* Navigation Bar */}
-      <header className="sticky top-0 z-50 backdrop-blur-md bg-[#0a0a0a]/90 border-b border-white/10">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="inline-block">
-              <Image
-                src={SPOTIFY_LOGO_URL}
-                alt="Spotify Logo"
-                width={132}
-                height={40}
-                className="h-7 sm:h-8 w-auto object-contain"
-                priority
-                referrerPolicy="no-referrer"
-              />
-            </Link>
-            <span className="hidden sm:inline-block text-[11px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-[#1db954]/20 text-[#1db954] border border-[#1db954]/30">
-              Rewards
-            </span>
-          </div>
+      {/* Main Clean & Colorful Header */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-18 sm:h-20 flex items-center justify-between gap-4">
+          {/* Logo with Distinctive Clean Color Badge */}
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-700 flex items-center justify-center text-white font-black text-sm tracking-tight shadow-md shadow-indigo-600/25 group-hover:scale-105 transition-transform">
+              NOS
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-lg sm:text-xl font-black tracking-tight text-slate-900">
+                  Next Offer Spot
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  HUB
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">Verified Remote Offers &amp; Rewards</p>
+            </div>
+          </Link>
 
+          {/* Navigation Links */}
+          <nav className="hidden md:flex items-center gap-7 text-sm font-semibold text-slate-600">
+            <a href="#campaigns" className="hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+              <span>All Offers</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600">
+                {campaigns.length}
+              </span>
+            </a>
+            <a href="#how-it-works" className="hover:text-indigo-600 transition-colors">
+              How It Works
+            </a>
+            <a href="#trust-guarantee" className="hover:text-indigo-600 transition-colors">
+              Verified Payouts
+            </a>
+          </nav>
+
+          {/* Prominent Direct Button to Active Spotify Offer */}
           <Link
-            href="/rewards"
-            className="inline-flex items-center gap-2 bg-[#1db954] hover:bg-[#1ed760] text-black font-bold text-xs sm:text-sm px-4 sm:px-6 py-2.5 rounded-full transition-all duration-200 transform hover:scale-[1.03] active:scale-95 shadow-lg shadow-[#1db954]/20"
+            href="/spotify"
+            className="inline-flex items-center gap-2 bg-[#1ed760] hover:bg-[#1db954] text-slate-950 font-black text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-full transition-all duration-200 transform hover:scale-[1.03] shadow-md shadow-emerald-500/25"
           >
-            <span>Start Evaluating</span>
-            <ArrowRight size={16} />
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-950 opacity-40" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-950" />
+            </span>
+            <span>Spotify ($350/day)</span>
+            <ArrowRight size={15} />
           </Link>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative pt-10 sm:pt-16 pb-16 sm:pb-24 px-4 sm:px-6 overflow-hidden">
-        {/* Glow ambient background */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-[#1db954]/15 rounded-full blur-[140px] pointer-events-none" />
+      {/* Hero Section with Warm Color Accents */}
+      <section className="relative pt-10 sm:pt-16 pb-12 sm:pb-16 px-4 sm:px-6 overflow-hidden bg-gradient-to-b from-white via-blue-50/40 to-[#f3f6fb] border-b border-slate-200/60">
+        {/* Subtle Decorative Color Blobs */}
+        <div className="absolute top-0 right-10 w-96 h-96 bg-indigo-200/35 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-20 left-10 w-80 h-80 bg-emerald-200/30 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="max-w-5xl mx-auto text-center relative z-10">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 mb-6 backdrop-blur-sm">
-            <span className="h-2 w-2 rounded-full bg-[#1db954] animate-ping" />
-            <span className="text-xs sm:text-sm font-semibold tracking-wide text-gray-300">
-              Official Evaluator Partner Program • Spotify Media Service
+        <div className="max-w-4xl mx-auto text-center relative z-10">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-indigo-200/80 mb-5 shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+            <span className="text-xs font-bold text-indigo-900 tracking-wide">
+              Next Offer Spot Central Directory • Real-Time Openings
             </span>
           </div>
 
-          {/* Headline */}
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.15] sm:leading-[1.12] mb-6 text-white">
-            Earn up to <span className="text-[#1db954] underline decoration-[#1db954] underline-offset-8">$350 per day</span> working with Spotify evaluating music as a partner for major record labels.
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-900 leading-[1.15] mb-5">
+            Discover Verified Remote Offers &amp;{' '}
+            <span className="bg-gradient-to-r from-indigo-600 via-blue-600 to-emerald-600 bg-clip-text text-transparent">
+              High-Payout Micro Tasks
+            </span>
           </h1>
 
-          {/* Subheading */}
-          <p className="text-base sm:text-xl text-gray-300 max-w-3xl mx-auto mb-8 sm:mb-10 leading-relaxed font-normal">
-            Get paid in USD listening to tracks and new music releases from global superstars as well as emerging independent artists. Give your verdict before songs hit the biggest global playlists.
+          <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto mb-8 leading-relaxed font-normal">
+            We partner directly with leading media, retail, and tech corporations to host exclusive evaluation campaigns. Access open positions before slots fill up.
           </p>
 
-          {/* Main Hero Image */}
-          <Link href="/rewards" className="block cursor-pointer group">
-            <div className="relative mx-auto max-w-4xl rounded-2xl sm:rounded-3xl p-1.5 sm:p-2.5 bg-gradient-to-b from-[#1db954]/50 via-white/10 to-transparent shadow-2xl shadow-[#1db954]/25 transition-transform duration-300 group-hover:scale-[1.01]">
-              <div className="relative w-full rounded-xl sm:rounded-2xl overflow-hidden bg-[#121212] border border-white/10">
-                <Image
-                  src={HERO_BANNER_URL}
-                  alt="Spotify Rewards Banner - Evaluating Music"
-                  width={1200}
-                  height={550}
-                  className="w-full h-auto object-cover block"
-                  priority
-                  referrerPolicy="no-referrer"
-                />
-              </div>
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto">
+            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
+              <span className="text-xs text-slate-500 font-medium block">Daily Top Pay</span>
+              <strong className="text-lg sm:text-xl font-black text-emerald-600">$350.00</strong>
             </div>
-          </Link>
-        </div>
-      </section>
-
-      {/* Why Spotify Pays Section */}
-      <section className="py-16 sm:py-20 px-4 sm:px-6 bg-[#0f0f0f] border-y border-white/5">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#1db954] px-3 py-1 rounded-full bg-[#1db954]/10 border border-[#1db954]/20 inline-block mb-3">
-              Understand the Market
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-white mb-4">
-              Why does Spotify pay up to $350 a day for you to evaluate music?
-            </h2>
-            <p className="text-gray-400 text-sm sm:text-base leading-relaxed">
-              Spotify&apos;s algorithm recommends music to over 600 million users every single day. But before promoting a track worldwide, record labels need real human validation and listener feedback.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-            <div className="bg-[#181818] p-6 sm:p-8 rounded-2xl border border-white/10 hover:border-[#1db954]/40 transition-colors">
-              <div className="w-12 h-12 rounded-xl bg-[#1db954]/10 text-[#1db954] flex items-center justify-center mb-5">
-                <Music2 size={24} />
-              </div>
-              <h3 className="text-lg font-bold text-white mb-2">Major and Independent Artists</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                From established names like Adele and The Weeknd to independent upcoming talent and regional record labels needing audience testing.
-              </p>
+            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
+              <span className="text-xs text-slate-500 font-medium block">Open Offers</span>
+              <strong className="text-lg sm:text-xl font-black text-indigo-600">1 Live Now</strong>
             </div>
-
-            <div className="bg-[#181818] p-6 sm:p-8 rounded-2xl border border-white/10 hover:border-[#1db954]/40 transition-colors">
-              <div className="w-12 h-12 rounded-xl bg-[#1db954]/10 text-[#1db954] flex items-center justify-center mb-5">
-                <TrendingUp size={24} />
-              </div>
-              <h3 className="text-lg font-bold text-white mb-2">Multi-Million Savings</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Record labels prefer paying listeners directly to test rhythm and melody rather than spending millions on unengaging marketing campaigns.
-              </p>
+            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
+              <span className="text-xs text-slate-500 font-medium block">Archived Offers</span>
+              <strong className="text-lg sm:text-xl font-black text-slate-700">3 Concluded</strong>
             </div>
-
-            <div className="bg-[#181818] p-6 sm:p-8 rounded-2xl border border-white/10 hover:border-[#1db954]/40 transition-colors">
-              <div className="w-12 h-12 rounded-xl bg-[#1db954]/10 text-[#1db954] flex items-center justify-center mb-5">
-                <DollarSign size={24} />
-              </div>
-              <h3 className="text-lg font-bold text-white mb-2">Direct USD Payouts</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                You earn a commission payout for every completed track. Each finished review set adds directly to your balance for immediate withdrawal.
-              </p>
+            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
+              <span className="text-xs text-slate-500 font-medium block">Access Fee</span>
+              <strong className="text-lg sm:text-xl font-black text-emerald-600">100% Free</strong>
             </div>
           </div>
         </div>
       </section>
 
-      {/* How it Works Step-by-Step */}
-      <section className="py-16 sm:py-24 px-4 sm:px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center max-w-2xl mx-auto mb-14">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#1db954] px-3 py-1 rounded-full bg-[#1db954]/10 border border-[#1db954]/20 inline-block mb-3">
-              Step-by-Step
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-white mb-4">
-              How the daily work works
-            </h2>
-            <p className="text-gray-400 text-sm sm:text-base">
-              You can work from anywhere, using just your phone with an internet connection.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-[#141414] p-6 rounded-2xl border border-white/5 relative flex flex-col">
-              <span className="text-4xl font-black text-white/10 mb-4">01</span>
-              <div className="w-10 h-10 rounded-lg bg-[#1db954]/20 text-[#1db954] flex items-center justify-center mb-4">
-                <Play size={20} />
-              </div>
-              <h3 className="text-base font-bold text-white mb-2">1. Listen to the Track</h3>
-              <p className="text-gray-400 text-xs sm:text-sm leading-relaxed">
-                Press play and listen to the song to evaluate the artist&apos;s melody, lyrics, and rhythm.
-              </p>
-            </div>
-
-            <div className="bg-[#141414] p-6 rounded-2xl border border-white/5 relative flex flex-col">
-              <span className="text-4xl font-black text-white/10 mb-4">02</span>
-              <div className="w-10 h-10 rounded-lg bg-[#1db954]/20 text-[#1db954] flex items-center justify-center mb-4">
-                <Headphones size={20} />
-              </div>
-              <h3 className="text-base font-bold text-white mb-2">2. Answer Questions</h3>
-              <p className="text-gray-400 text-xs sm:text-sm leading-relaxed">
-                Give your honest feedback with quick &quot;Yes&quot; or &quot;No&quot; clicks regarding the song and artist.
-              </p>
-            </div>
-
-            <div className="bg-[#141414] p-6 rounded-2xl border border-white/5 relative flex flex-col">
-              <span className="text-4xl font-black text-white/10 mb-4">03</span>
-              <div className="w-10 h-10 rounded-lg bg-[#1db954]/20 text-[#1db954] flex items-center justify-center mb-4">
-                <DollarSign size={20} />
-              </div>
-              <h3 className="text-base font-bold text-white mb-2">3. Accumulate Balance</h3>
-              <p className="text-gray-400 text-xs sm:text-sm leading-relaxed">
-                Each completed review credits your commission in real-time with a satisfying confirmation sound.
-              </p>
-            </div>
-
-            <div className="bg-[#141414] p-6 rounded-2xl border border-white/5 relative flex flex-col">
-              <span className="text-4xl font-black text-white/10 mb-4">04</span>
-              <div className="w-10 h-10 rounded-lg bg-[#1db954]/20 text-[#1db954] flex items-center justify-center mb-4">
-                <CheckCircle2 size={20} />
-              </div>
-              <h3 className="text-base font-bold text-white mb-2">4. Cash Out Earnings</h3>
-              <p className="text-gray-400 text-xs sm:text-sm leading-relaxed">
-                Generate your official receipt signed by the CFO and withdraw your accumulated earnings the same day.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-12 text-center">
-            <Link
-              href="/rewards"
-              className="inline-flex items-center gap-3 bg-[#1db954] hover:bg-[#1ed760] text-black font-extrabold text-sm sm:text-base px-8 py-4 rounded-full transition-all transform hover:scale-[1.03] shadow-lg shadow-[#1db954]/25"
-            >
-              <span>TRY YOUR FIRST EVALUATION NOW</span>
-              <ArrowRight size={18} />
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials and Ratings */}
-      <section className="py-16 sm:py-24 px-4 sm:px-6 bg-[#0c0c0c] border-t border-white/5">
+      {/* Main Offers Section */}
+      <section id="campaigns" className="py-12 sm:py-16 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center max-w-2xl mx-auto mb-14">
-            <div className="flex items-center justify-center gap-1.5 text-yellow-400 mb-3">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} size={20} className="fill-yellow-400" />
-              ))}
-              <span className="text-white font-bold ml-2 text-sm sm:text-base">4.9 / 5.0 stars</span>
+          {/* Controls Bar: Title & Filter Tabs */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-700 mb-1">
+                <span>Directory Catalog</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                Partner Campaigns &amp; Positions
+              </h2>
             </div>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-white mb-3">
-              Reviews from active evaluators
-            </h2>
-            <p className="text-gray-400 text-sm sm:text-base">
-              See feedback from real people working as Spotify partner reviewers.
-            </p>
+
+            {/* Filter Pills with Color */}
+            <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setFilter('all')}
+                className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors ${
+                  filter === 'all'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                All Campaigns ({campaigns.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilter('active')}
+                className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1 ${
+                  filter === 'active'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-emerald-700 hover:text-emerald-800'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
+                Active Only (1)
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilter('closed')}
+                className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors ${
+                  filter === 'closed'
+                    ? 'bg-slate-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Ended / Closed (3)
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {testimonials.map((item, idx) => (
-              <div
-                key={idx}
-                className="bg-[#141414] p-6 sm:p-7 rounded-2xl border border-white/10 flex flex-col justify-between hover:border-[#1db954]/40 transition-all duration-300"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="relative w-12 h-12 rounded-full overflow-hidden border border-white/20 shrink-0">
-                        <Image
-                          src={item.avatar}
-                          alt={item.name}
-                          width={48}
-                          height={48}
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
+          {/* Cards List */}
+          <div className="space-y-6">
+            {filtered.map((item) => {
+              const isActive = item.status === 'active';
+
+              return (
+                <div
+                  key={item.id}
+                  className={`bg-white rounded-2xl p-6 sm:p-8 border transition-all relative overflow-hidden ${
+                    isActive
+                      ? 'border-2 border-emerald-500 shadow-xl shadow-emerald-500/10 hover:border-emerald-600'
+                      : 'border-slate-200 hover:border-slate-300 shadow-xs'
+                  }`}
+                >
+                  {/* Active Highlight Top Strip */}
+                  {isActive && (
+                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-[#1ed760] to-teal-500" />
+                  )}
+
+                  <div className="flex flex-col lg:flex-row items-start justify-between gap-6">
+                    {/* Left: Brand Identity & Title */}
+                    <div className="flex-1">
+                      {/* Tags Bar */}
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        {/* Brand Badge */}
+                        <span
+                          className={`font-black text-xs px-2.5 py-0.5 rounded-md border ${
+                            isActive
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              : 'bg-slate-100 text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          {item.brand} • {item.brandTag}
+                        </span>
+
+                        {/* Status Badge */}
+                        {isActive ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            {item.statusBadge}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                            <Lock size={12} />
+                            {item.statusBadge}
+                          </span>
+                        )}
+
+                        <span className="text-xs text-slate-400 font-medium">{item.dateBadge}</span>
                       </div>
-                      <div>
-                        <h4 className="font-bold text-white text-sm sm:text-base">{item.name}</h4>
-                        <span className="text-xs text-gray-400">{item.location}</span>
+
+                      {/* Title */}
+                      <h3 className="text-xl sm:text-2xl font-black text-slate-900 mb-2 leading-snug">
+                        {item.title}
+                      </h3>
+
+                      <p className="text-slate-600 text-sm leading-relaxed mb-4 max-w-2xl">
+                        {item.description}
+                      </p>
+
+                      {/* Feature Pills */}
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        {item.highlights.map((h, idx) => (
+                          <span
+                            key={idx}
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-md border ${
+                              isActive
+                                ? 'bg-slate-50 text-slate-700 border-slate-200'
+                                : 'bg-slate-50 text-slate-500 border-slate-200'
+                            }`}
+                          >
+                            ✓ {h}
+                          </span>
+                        ))}
                       </div>
                     </div>
 
-                    <div className="text-right">
-                      <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-[#1db954]/15 text-[#1db954] border border-[#1db954]/30">
-                        {item.earnings}
-                      </span>
-                      <span className="block text-[11px] text-gray-500 mt-1">{item.date}</span>
+                    {/* Right: Compensation & Actions */}
+                    <div className="w-full lg:w-72 shrink-0 flex flex-col justify-between sm:items-end p-4 sm:p-0 rounded-xl bg-slate-50 sm:bg-transparent border sm:border-0 border-slate-200">
+                      <div className="sm:text-right mb-4">
+                        <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider block">
+                          Verified Compensation
+                        </span>
+                        <strong
+                          className={`text-2xl sm:text-3xl font-black block tracking-tight ${
+                            isActive ? 'text-emerald-600' : 'text-slate-700'
+                          }`}
+                        >
+                          {item.rewardValue}
+                        </strong>
+                        <span className="text-xs font-semibold text-slate-500 block mt-0.5">
+                          {item.rewardSub}
+                        </span>
+                        <span className="inline-block mt-2 text-[11px] font-bold px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600">
+                          {item.slotsText}
+                        </span>
+                      </div>
+
+                      {/* Interactive Buttons */}
+                      <div className="w-full flex flex-col gap-2">
+                        {isActive ? (
+                          <>
+                            <Link
+                              href="/spotify"
+                              className="w-full inline-flex items-center justify-center gap-2 bg-[#1ed760] hover:bg-[#1db954] text-slate-950 font-black text-sm py-3 px-5 rounded-xl transition-all transform hover:scale-[1.02] shadow-md shadow-emerald-500/25"
+                            >
+                              <span>Open Spotify Offer Page</span>
+                              <ArrowRight size={16} />
+                            </Link>
+
+                            <Link
+                              href="/spotify/rewards"
+                              className="w-full inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-all"
+                            >
+                              <Headphones size={14} className="text-emerald-400" />
+                              <span>Direct Evaluator Chat</span>
+                            </Link>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              disabled
+                              className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100 text-slate-400 font-bold text-xs py-2.5 px-4 rounded-xl border border-slate-200 cursor-not-allowed"
+                            >
+                              <Lock size={13} />
+                              <span>Registration Closed</span>
+                            </button>
+
+                            <Link
+                              href="/spotify"
+                              className="w-full inline-flex items-center justify-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 py-1 transition-colors"
+                            >
+                              <span>Apply to Open Spotify Offer instead →</span>
+                            </Link>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-1 mb-3 text-yellow-400">
-                    {[...Array(item.stars)].map((_, i) => (
-                      <Star key={i} size={14} className="fill-yellow-400" />
-                    ))}
-                  </div>
-
-                  <p className="text-gray-300 text-sm leading-relaxed italic">
-                    &ldquo;{item.comment}&rdquo;
-                  </p>
                 </div>
-
-                <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-between text-xs text-gray-500">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 size={13} className="text-[#1db954]" />
-                    Verified Official Evaluator
-                  </span>
-                  <span>Spotify Rewards AB</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* Daily Earnings Potential Table */}
-      <section className="py-16 sm:py-20 px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-gradient-to-b from-[#181818] to-[#121212] rounded-3xl p-6 sm:p-10 border border-white/10 shadow-2xl">
-            <div className="text-center max-w-xl mx-auto mb-8 sm:mb-10">
-              <span className="text-xs font-bold uppercase tracking-widest text-[#1db954] px-3 py-1 rounded-full bg-[#1db954]/10 border border-[#1db954]/20 inline-block mb-2">
-                Earnings Estimate
+      {/* Featured Banner Preview (Spotify Active) */}
+      <section className="py-10 px-4 sm:px-6 bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border-y border-slate-200">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 border border-emerald-200 shadow-md flex flex-col lg:flex-row items-center justify-between gap-8">
+            <div className="flex-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 px-3 py-1 rounded-full bg-emerald-100 border border-emerald-300 inline-block mb-3">
+                Featured Campaign Spotlight
               </span>
-              <h3 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">
-                How much time do you want to spend?
+              <h3 className="text-2xl sm:text-3xl font-black text-slate-900 mb-2">
+                Spotify Music Evaluator Program ($350/day)
               </h3>
-              <p className="text-gray-400 text-xs sm:text-sm">
-                Payouts are calculated instantly for every set of evaluated songs.
+              <p className="text-slate-600 text-sm leading-relaxed mb-6 max-w-xl">
+                The only live campaign currently accepting new participants with instant commission release. Review 6 sample tracks to test the evaluation platform today.
               </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 text-center flex flex-col justify-center items-center">
-                <span className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Beginner (30 min)</span>
-                <strong className="block text-2xl sm:text-3xl font-black text-white">$45 to $70</strong>
-              </div>
-
-              <div className="bg-[#1db954]/10 p-6 rounded-2xl border border-[#1db954]/30 text-center flex flex-col justify-center items-center">
-                <span className="block text-xs font-semibold text-[#1db954] uppercase tracking-wider mb-2">Intermediate (1-2 hrs)</span>
-                <strong className="block text-2xl sm:text-3xl font-black text-[#1db954]">$92 to $180</strong>
-              </div>
-
-              <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 text-center flex flex-col justify-center items-center">
-                <span className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Dedicated (3-4 hrs)</span>
-                <strong className="block text-2xl sm:text-3xl font-black text-white">Up to $350</strong>
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  href="/spotify"
+                  className="inline-flex items-center gap-2 bg-[#1ed760] hover:bg-[#1db954] text-slate-950 font-black text-sm px-6 py-3 rounded-xl transition-all shadow-md shadow-emerald-500/20"
+                >
+                  <span>Go to Offer Details</span>
+                  <ArrowRight size={16} />
+                </Link>
+                <Link
+                  href="/spotify/rewards"
+                  className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm px-6 py-3 rounded-xl transition-all"
+                >
+                  <span>Open Audio Funnel</span>
+                </Link>
               </div>
             </div>
 
-            <div className="text-center">
-              <Link
-                href="/rewards"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-[#1db954] hover:bg-[#1ed760] text-black font-extrabold text-base px-8 py-4 rounded-full transition-all transform hover:scale-[1.03] shadow-lg shadow-[#1db954]/30"
-              >
-                <span>START WORKING WITH SPOTIFY NOW</span>
-                <ArrowRight size={20} />
+            <div className="w-full lg:w-80 shrink-0">
+              <Link href="/spotify" className="block group">
+                <div className="relative rounded-xl overflow-hidden border border-emerald-300 shadow-md bg-black group-hover:scale-105 transition-transform">
+                  <Image
+                    src="/spotify-hero-banner.webp"
+                    alt="Spotify Music Evaluator Banner"
+                    width={500}
+                    height={300}
+                    className="w-full h-auto object-cover block"
+                    priority
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-3 text-xs text-white">
+                    <span className="font-bold flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Session Active
+                    </span>
+                  </div>
+                </div>
               </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Frequently Asked Questions (FAQ) */}
-      <section className="py-16 sm:py-20 px-4 sm:px-6 bg-[#0f0f0f] border-t border-white/5">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-white mb-3">
-              Frequently Asked Questions
+      {/* How It Works Section */}
+      <section id="how-it-works" className="py-14 sm:py-18 px-4 sm:px-6 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 inline-block mb-3">
+              Process
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mb-2">
+              How Next Offer Spot Distributes Campaigns
             </h2>
-            <p className="text-gray-400 text-sm">
-              Get answers to common questions before starting your free evaluation session.
+            <p className="text-slate-600 text-sm sm:text-base">
+              A clear, verified pathway from corporate sponsorship to evaluator payout.
             </p>
           </div>
 
-          <div className="space-y-3">
-            {faqs.map((faq, idx) => (
-              <div
-                key={idx}
-                className="bg-[#161616] rounded-2xl border border-white/10 overflow-hidden transition-colors"
-              >
-                <button
-                  type="button"
-                  onClick={() => toggleFaq(idx)}
-                  className="w-full text-left p-5 sm:p-6 flex items-center justify-between gap-4 font-bold text-white text-sm sm:text-base hover:text-[#1db954] transition-colors"
-                >
-                  <span>{faq.question}</span>
-                  <span className={`text-xl font-mono text-[#1db954] transition-transform duration-200 ${openFaq === idx ? 'rotate-45' : ''}`}>
-                    +
-                  </span>
-                </button>
-                {openFaq === idx && (
-                  <div className="px-5 sm:px-6 pb-5 sm:pb-6 text-gray-300 text-xs sm:text-sm leading-relaxed border-t border-white/5 pt-4">
-                    {faq.answer}
-                  </div>
-                )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-base mb-4 shadow-sm shadow-indigo-600/30">
+                1
               </div>
-            ))}
+              <h4 className="font-black text-slate-900 text-base mb-2">Dedicated Route Per Offer</h4>
+              <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                Each verified partner gets a custom sub-path (e.g. <code>/spotify</code>) containing complete instructions, terms, and the interactive evaluator tool.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-base mb-4 shadow-sm shadow-emerald-600/30">
+                2
+              </div>
+              <h4 className="font-black text-slate-900 text-base mb-2">Live Intake Monitoring</h4>
+              <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                Positions are tracked in real-time. When a partner’s quota is achieved, the campaign status updates automatically to prevent unpaid work.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-base mb-4 shadow-sm shadow-blue-600/30">
+                3
+              </div>
+              <h4 className="font-black text-slate-900 text-base mb-2">Instant Accounting &amp; Cashout</h4>
+              <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                Evaluators finish their assigned batches and generate signed documentation with immediate transfer capability to their preferred account.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Final Action Banner */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6 relative overflow-hidden text-center bg-gradient-to-b from-[#0a0a0a] via-[#121212] to-black">
-        <div className="absolute inset-0 bg-[#1db954]/10 blur-[150px] pointer-events-none" />
-
-        <div className="max-w-3xl mx-auto relative z-10">
-          <div className="w-16 h-16 rounded-2xl bg-[#1db954]/20 text-[#1db954] mx-auto flex items-center justify-center mb-6">
-            <Sparkles size={32} />
+      {/* Trust & Guarantee */}
+      <section id="trust-guarantee" className="py-10 px-4 sm:px-6 bg-slate-900 text-white">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+              <ShieldCheck className="w-7 h-7" />
+            </div>
+            <div>
+              <h4 className="font-black text-white text-base">Next Offer Spot Partner Verification</h4>
+              <p className="text-xs sm:text-sm text-slate-400 max-w-xl">
+                Zero fees for participants. All campaigns undergo legal and compensation verification before publishing to the hub.
+              </p>
+            </div>
           </div>
 
-          <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight mb-6">
-            Start now and secure your earnings of up to $350 per day
-          </h2>
-
-          <p className="text-gray-300 text-base sm:text-lg mb-10 max-w-2xl mx-auto leading-relaxed">
-            Evaluator slots are limited per region to guarantee payout quotas. Click below to open your evaluation session immediately.
-          </p>
-
-          <Link
-            href="/rewards"
-            className="inline-flex items-center justify-center gap-3 bg-[#1db954] hover:bg-[#1ed760] text-black font-black text-base sm:text-xl px-10 py-5 rounded-full transition-all duration-300 transform hover:scale-[1.05] shadow-2xl shadow-[#1db954]/50 active:scale-95 uppercase tracking-wide"
-          >
-            <span>START WORKING WITH SPOTIFY NOW</span>
-            <ArrowRight size={24} />
-          </Link>
-
-          <div className="mt-6 flex items-center justify-center gap-2 text-xs text-gray-400">
-            <Lock size={14} className="text-[#1db954]" />
-            <span>Secure Access with 256-bit SSL Encryption • No hidden fees</span>
+          <div className="flex flex-wrap items-center justify-center gap-4 text-xs font-bold text-slate-300">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 size={16} className="text-emerald-400" />
+              Verified Escrow
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 size={16} className="text-emerald-400" />
+              Free Access
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 size={16} className="text-emerald-400" />
+              Direct USD Payouts
+            </span>
           </div>
         </div>
       </section>
 
-      {/* Official Footer */}
-      <footer className="py-10 px-4 sm:px-6 bg-black border-t border-white/10 text-center text-xs text-gray-500">
-        <div className="max-w-5xl mx-auto flex flex-col items-center gap-4">
-          <div>
-            <Image
-              src={SPOTIFY_LOGO_URL}
-              alt="Spotify"
-              width={120}
-              height={36}
-              className="h-6 w-auto object-contain opacity-75 mx-auto"
-              referrerPolicy="no-referrer"
-            />
+      {/* Footer */}
+      <footer className="py-12 px-4 sm:px-6 bg-white border-t border-slate-200 text-xs text-slate-500">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-black text-xs">
+              NOS
+            </div>
+            <span className="font-black text-slate-900 text-base">Next Offer Spot</span>
+            <span className="text-slate-400 text-xs">| Central Offers Hub</span>
           </div>
 
-          <p className="max-w-xl text-gray-500 leading-relaxed">
-            Spotify Media Service AB • Regeringsgatan 19, Stockholm, Sweden • VAT: SE556703748501.
-            <br />
-            Official Spotify Rewards music validation program in partnership with accredited artists and record labels.
-          </p>
-
-          <div className="flex flex-wrap justify-center gap-4 text-gray-400 text-[11px] pt-2">
-            <span>Privacy</span>
-            <span>•</span>
-            <span>Partnership Terms</span>
-            <span>•</span>
-            <span>Evaluation Guidelines</span>
-            <span>•</span>
-            <span>Official Support</span>
+          <div className="flex flex-wrap items-center gap-6 text-slate-600 font-semibold">
+            <Link href="/spotify" className="hover:text-emerald-600 transition-colors">
+              Active: Spotify ($350/day)
+            </Link>
+            <Link href="/spotify/rewards" className="hover:text-emerald-600 transition-colors">
+              Evaluator Chat (/spotify/rewards)
+            </Link>
+            <span className="text-slate-400">Terms</span>
+            <span className="text-slate-400">Privacy</span>
+            <span className="text-slate-400">Support</span>
           </div>
 
-          <span className="text-gray-600 text-[11px]">
-            © {new Date().getFullYear()} Spotify AB. All rights reserved.
-          </span>
+          <div className="text-slate-400 text-[11px]">
+            &copy; {new Date().getFullYear()} Next Offer Spot LLC. All rights reserved.
+          </div>
         </div>
       </footer>
     </div>

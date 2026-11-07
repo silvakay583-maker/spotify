@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Spotify Rewards — Ganhe até $350 por dia avaliando músicas',
+  title: 'Next Offer Spot — The Central Hub for Exclusive Offers, Remote Tasks & Rewards',
   description:
-    'Programa oficial Spotify Rewards de validação musical em parceria com grandes e pequenos artistas e produtoras. Avalie faixas e receba pagamentos diários.',
+    'Discover verified high-paying remote tasks, audio track evaluations, brand sentiment testing, and exclusive member vouchers with instant payouts.',
   openGraph: {
-    title: 'Spotify Rewards — Ganhe até $350 por dia avaliando músicas',
+    title: 'Next Offer Spot — The Central Hub for Exclusive Offers, Remote Tasks & Rewards',
     description:
-      'Programa oficial Spotify Rewards de validação musical em parceria com grandes e pequenos artistas e produtoras. Avalie faixas e receba pagamentos diários.',
+      'Discover verified high-paying remote tasks, audio track evaluations, brand sentiment testing, and exclusive member vouchers with instant payouts.',
   },
 };
 
@@ -24,6 +24,40 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+(function () {
+  var OPEN = '{' + '{';
+  var KEYS = ['fbclid','ad_id','adset_id','campaign_id','campaign_name','placement','source'];
+  function isMacro(v){ return !v || v.indexOf(OPEN) !== -1 || v.indexOf('%7B%7B') !== -1; }
+  function grab(){
+    var s = {}, qs = new URLSearchParams(location.search);
+    KEYS.forEach(function (k) {
+      var v = qs.get(k);
+      if (v && !isMacro(v)) sessionStorage.setItem('q_' + k, v);
+      var saved = sessionStorage.getItem('q_' + k);
+      if (saved && !isMacro(saved)) s[k] = saved;
+    });
+    return s;
+  }
+  grab();
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && (e.target.closest('a[href*="aff_c"]') || e.target.closest('a[href*="giftclick.org"]') || e.target.closest('a[href*="offer_id"]'));
+    if (!a) return;
+    var s = grab();
+    try {
+      var u = new URL(a.href, location.href);
+      Object.keys(s).forEach(function (k) { u.searchParams.set(k, s[k]); });
+      a.href = u.toString();
+    } catch (err) {}
+  }, true);
+})();
+`,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

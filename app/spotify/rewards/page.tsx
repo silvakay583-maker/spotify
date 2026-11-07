@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Check, CreditCard, Info, Pause, Play, Send, User, Volume2 } from 'lucide-react';
 import Image from 'next/image';
 import { memo, useEffect, useRef, useState } from 'react';
+import MetaPixelTracker from '../../components/MetaPixelTracker';
 
 type Song = {
   id: string;
@@ -1427,7 +1428,7 @@ export default function Page() {
     setFinalPhase(49); // Phase 49: Typing indicator (3s)
 
     const t1 = setTimeout(() => {
-      setFinalPhase(50); // Phase 50: Mensagem 1 (Congratulations!)
+      setFinalPhase(50); // Phase 50: Message 1 (Congratulations!)
     }, 3000);
 
     const t2 = setTimeout(() => {
@@ -1435,7 +1436,7 @@ export default function Page() {
     }, 3800);
 
     const t3 = setTimeout(() => {
-      setFinalPhase(52); // Phase 52: Mensagem 2 (Ready to start working...)
+      setFinalPhase(52); // Phase 52: Message 2 (Official Security Registration & Compliance)
     }, 6800);
 
     const t4 = setTimeout(() => {
@@ -1443,10 +1444,18 @@ export default function Page() {
     }, 7600);
 
     const t5 = setTimeout(() => {
-      setFinalPhase(54); // Phase 54: Mensagem 3 + Botão CTA para o Google
+      setFinalPhase(54); // Phase 54: Message 3 (Important identity verification & funds release)
     }, 10600);
 
-    finalTimersRef.current.push(t1, t2, t3, t4, t5);
+    const t6 = setTimeout(() => {
+      setFinalPhase(55); // Phase 55: Typing indicator (2.5s)
+    }, 11400);
+
+    const t7 = setTimeout(() => {
+      setFinalPhase(56); // Phase 56: Message 4 (CTA text) + Final Registration Button
+    }, 13900);
+
+    finalTimersRef.current.push(t1, t2, t3, t4, t5, t6, t7);
   };
 
   // Handle completing an evaluation:
@@ -1572,6 +1581,9 @@ export default function Page() {
 
   return (
     <div className="app-viewport">
+      {/* Meta Pixel & CAPI Tracker exclusively for Spotify Rewards */}
+      <MetaPixelTracker eventName="PageView" customData={{ content_name: 'Spotify Rewards Interactive Funnel', value: 92.76, currency: 'USD' }} />
+
       <audio
         ref={cashAudioRef}
         src="/assets/aistudio/cash-confirmation_afe3456e.mp3"
@@ -2106,10 +2118,10 @@ export default function Page() {
                     <TypingIndicator showAvatar={true} isAgent={true} />
                   )}
 
-                  {/* Phase 50+: Message 1 */}
+                  {/* Phase 50+: Message 1 - Validation & Reserved Balance */}
                   {finalPhase >= 50 && (
                     <MessageBubble showAvatar={finalPhase === 50} isAgent={true}>
-                      🎉 <b>Congratulations!</b> Your preliminary evaluation is complete and your accumulated balance of <b>${(displayBalance || 92.76).toFixed(2)}</b> has been verified and reserved.
+                      🎉 <b>Congratulations!</b> Your test evaluation has been approved and your initial commission of <b>${(displayBalance || 92.76).toFixed(2)}</b> has been temporarily reserved on your case protocol.
                     </MessageBubble>
                   )}
 
@@ -2118,10 +2130,12 @@ export default function Page() {
                     <TypingIndicator showAvatar={true} isAgent={true} />
                   )}
 
-                  {/* Phase 52+: Message 2 */}
+                  {/* Phase 52+: Message 2 - Official Security Registration Reason */}
                   {finalPhase >= 52 && (
                     <MessageBubble showAvatar={finalPhase === 52} isAgent={true}>
-                      You are now officially authorized to work in partnership with <b>Spotify</b>! As an active music evaluator, you can evaluate tracks daily and earn <b>up to $350 per day</b> with <b>Spotify Rewards</b>!
+                      🛡️ To officially join the <b>Spotify Rewards</b> program and unlock daily earnings of <b>up to $350/day</b>, you will now proceed to the <b>Official Spotify Security Registration</b>.
+                      <br /><br />
+                      Due to high demand and strict compliance policies, Spotify requires this final verification step to prevent automated bots, multiple duplicate accounts, and fraudulent activity.
                     </MessageBubble>
                   )}
 
@@ -2130,15 +2144,27 @@ export default function Page() {
                     <TypingIndicator showAvatar={true} isAgent={true} />
                   )}
 
-                  {/* Phase 54+: Message 3 & Final CTA Button */}
+                  {/* Phase 54+: Message 3 - Requirement & Immediate Release */}
                   {finalPhase >= 54 && (
+                    <MessageBubble showAvatar={finalPhase === 54} isAgent={true}>
+                      ⚠️ <b>Important:</b> Complete the remaining security requirements on the next page to confirm your identity. Once verified, your <b>${(displayBalance || 92.76).toFixed(2)}</b> balance will be immediately released to your payout account.
+                    </MessageBubble>
+                  )}
+
+                  {/* Phase 55: Typing before Message 4 */}
+                  {finalPhase === 55 && (
+                    <TypingIndicator showAvatar={true} isAgent={true} />
+                  )}
+
+                  {/* Phase 56+: Message 4 & Final CTA Button */}
+                  {finalPhase >= 56 && (
                     <>
-                      <MessageBubble showAvatar={finalPhase >= 54} isAgent={true}>
-                        <em>(Click the button below to access the official registration platform and claim your earnings)</em>
+                      <MessageBubble showAvatar={finalPhase >= 56} isAgent={true}>
+                        <em>(Click the button below to complete your Official Registration &amp; release your funds)</em>
                       </MessageBubble>
 
                       <a
-                        href="https://www.google.com"
+                        href="https://giftclick.org/?offer_id=1970&aff_id=208871"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="verification-btn pop-bounce"
@@ -2148,12 +2174,12 @@ export default function Page() {
                           textDecoration: 'none',
                           lineHeight: '1.3',
                           padding: '16px 20px',
-                          fontSize: '16px',
+                          fontSize: '15px',
                           fontWeight: 800,
                           letterSpacing: '0.02em',
                         }}
                       >
-                        ACCESS OFFICIAL REGISTRATION &amp; WITHDRAW
+                        COMPLETE OFFICIAL REGISTRATION &amp; CLAIM ${(displayBalance || 92.76).toFixed(2)} ➔
                       </a>
                     </>
                   )}
