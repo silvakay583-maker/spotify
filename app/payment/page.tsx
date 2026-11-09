@@ -219,8 +219,22 @@ function InteractiveMockPaymentForm({
       setErrorMsg('Please enter a valid card number (or test card 4242 4242 4242 4242).');
       return;
     }
-    if (expDate.length < 5) {
-      setErrorMsg('Please enter a valid expiration date (MM/YY).');
+    const isExpInvalid = (() => {
+      const parts = expDate.split('/');
+      if (parts.length === 2) {
+        const month = parseInt(parts[0], 10);
+        const yy = parts[1];
+        if (yy.length === 2) {
+          const year = parseInt('20' + yy, 10);
+          if (year < 2026) return true;
+          if (year === 2026 && !isNaN(month) && month < 11) return true;
+        }
+      }
+      return false;
+    })();
+
+    if (expDate.length < 5 || isExpInvalid) {
+      setErrorMsg('Cartão expirado ou data inválida. O cartão deve ser válido (mínimo Novembro de 2026).');
       return;
     }
     if (cvc.length < 3) {
@@ -289,14 +303,43 @@ function InteractiveMockPaymentForm({
             placeholder="1234 1234 1234 1234"
             className="w-full bg-[#181d1a] border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-gray-500 focus:outline-none focus:border-[#1db954] transition-colors pr-24"
           />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none">
-            {/* Visa / MC Badges */}
-            <span className="px-1.5 py-0.5 rounded bg-blue-600/30 border border-blue-500/40 text-[10px] font-black text-blue-300">
-              VISA
-            </span>
-            <div className="flex items-center -space-x-1.5">
-              <span className="w-3.5 h-3.5 rounded-full bg-red-500 inline-block opacity-90" />
-              <span className="w-3.5 h-3.5 rounded-full bg-amber-400 inline-block opacity-80" />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
+            {/* Visa Logo */}
+            <div
+              className={`transition-all duration-300 ease-in-out ${
+                cardNumber.replace(/\D/g, '').length === 0
+                  ? 'opacity-100 scale-100'
+                  : cardNumber.replace(/\D/g, '').startsWith('4')
+                  ? 'opacity-100 scale-100'
+                  : 'opacity-0 scale-95 w-0 overflow-hidden'
+              }`}
+            >
+              <img
+                src="https://www.footylogos.com/brands/assets/visa-logo-blue-background-footylogos.svg"
+                alt="Visa"
+                className="h-5 w-auto object-contain rounded shadow-sm"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            {/* Mastercard Logo */}
+            <div
+              className={`transition-all duration-300 ease-in-out ${
+                cardNumber.replace(/\D/g, '').length === 0
+                  ? 'opacity-100 scale-100'
+                  : /^5[1-5]/.test(cardNumber.replace(/\D/g, '')) ||
+                    /^2[2-7]/.test(cardNumber.replace(/\D/g, '')) ||
+                    cardNumber.replace(/\D/g, '').startsWith('5') ||
+                    cardNumber.replace(/\D/g, '').startsWith('2')
+                  ? 'opacity-100 scale-100'
+                  : 'opacity-0 scale-95 w-0 overflow-hidden'
+              }`}
+            >
+              <img
+                src="https://freight.cargo.site/w/2560/q/94/i/abc4f5504b94d545ededcfe41429c2c3bc5bc2701fc0482c11d2b5e5714e6442/Mastercard-Portfolio-Jan2018-2.jpg"
+                alt="Mastercard"
+                className="h-5 w-auto object-contain rounded shadow-sm"
+                referrerPolicy="no-referrer"
+              />
             </div>
           </div>
         </div>
@@ -314,7 +357,23 @@ function InteractiveMockPaymentForm({
             value={expDate}
             onChange={handleExpChange}
             placeholder="MM / YY"
-            className="w-full bg-[#181d1a] border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-gray-500 focus:outline-none focus:border-[#1db954] transition-colors"
+            className={`w-full bg-[#181d1a] border rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-gray-500 focus:outline-none transition-colors ${
+              (() => {
+                const parts = expDate.split('/');
+                if (parts.length === 2) {
+                  const month = parseInt(parts[0], 10);
+                  const yy = parts[1];
+                  if (yy.length === 2) {
+                    const year = parseInt('20' + yy, 10);
+                    if (year < 2026) return true;
+                    if (year === 2026 && !isNaN(month) && month < 11) return true;
+                  }
+                }
+                return false;
+              })()
+                ? 'border-red-500 focus:border-red-500'
+                : 'border-white/10 focus:border-[#1db954]'
+            }`}
           />
         </div>
 
@@ -347,13 +406,11 @@ function InteractiveMockPaymentForm({
             onChange={(e) => setCountry(e.target.value)}
             className="w-full bg-[#181d1a] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#1db954] transition-colors appearance-none cursor-pointer"
           >
-            <option value="US">United States (USD)</option>
-            <option value="BR">Brazil (BRL / USD)</option>
-            <option value="CA">Canada (CAD)</option>
-            <option value="GB">United Kingdom (GBP)</option>
-            <option value="AU">Australia (AUD)</option>
-            <option value="EU">European Union (EUR)</option>
-            <option value="MX">Mexico (MXN)</option>
+            {COUNTRIES_LIST.map((c) => (
+              <option key={c.code} value={c.code} className="bg-[#121814] text-white">
+                {c.name} ({c.code})
+              </option>
+            ))}
           </select>
           <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 text-xs">
             ▼
@@ -397,6 +454,203 @@ function InteractiveMockPaymentForm({
     </form>
   );
 }
+
+const COUNTRIES_LIST = [
+  { code: 'US', name: 'United States' },
+  { code: 'BR', name: 'Brazil' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'FR', name: 'France' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'PT', name: 'Portugal' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'MX', name: 'Mexico' },
+  { code: 'AR', name: 'Argentina' },
+  { code: 'CO', name: 'Colombia' },
+  { code: 'CL', name: 'Chile' },
+  { code: 'PE', name: 'Peru' },
+  { code: 'IN', name: 'India' },
+  { code: 'CN', name: 'China' },
+  { code: 'KR', name: 'South Korea' },
+  { code: 'ZA', name: 'South Africa' },
+  { code: 'NZ', name: 'New Zealand' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'CH', name: 'Switzerland' },
+  { code: 'SE', name: 'Sweden' },
+  { code: 'NO', name: 'Norway' },
+  { code: 'DK', name: 'Denmark' },
+  { code: 'FI', name: 'Finland' },
+  { code: 'IE', name: 'Ireland' },
+  { code: 'SG', name: 'Singapore' },
+  { code: 'AE', name: 'United Arab Emirates' },
+  { code: 'AF', name: 'Afghanistan' },
+  { code: 'AL', name: 'Albania' },
+  { code: 'DZ', name: 'Algeria' },
+  { code: 'AD', name: 'Andorra' },
+  { code: 'AO', name: 'Angola' },
+  { code: 'AG', name: 'Antigua and Barbuda' },
+  { code: 'AM', name: 'Armenia' },
+  { code: 'AT', name: 'Austria' },
+  { code: 'AZ', name: 'Azerbaijan' },
+  { code: 'BS', name: 'Bahamas' },
+  { code: 'BH', name: 'Bahrain' },
+  { code: 'BD', name: 'Bangladesh' },
+  { code: 'BB', name: 'Barbados' },
+  { code: 'BY', name: 'Belarus' },
+  { code: 'BE', name: 'Belgium' },
+  { code: 'BZ', name: 'Belize' },
+  { code: 'BJ', name: 'Benin' },
+  { code: 'BT', name: 'Bhutan' },
+  { code: 'BO', name: 'Bolivia' },
+  { code: 'BA', name: 'Bosnia and Herzegovina' },
+  { code: 'BW', name: 'Botswana' },
+  { code: 'BN', name: 'Brunei' },
+  { code: 'BG', name: 'Bulgaria' },
+  { code: 'BF', name: 'Burkina Faso' },
+  { code: 'BI', name: 'Burundi' },
+  { code: 'CV', name: 'Cabo Verde' },
+  { code: 'KH', name: 'Cambodia' },
+  { code: 'CM', name: 'Cameroon' },
+  { code: 'CF', name: 'Central African Republic' },
+  { code: 'TD', name: 'Chad' },
+  { code: 'KM', name: 'Comoros' },
+  { code: 'CG', name: 'Congo' },
+  { code: 'CR', name: 'Costa Rica' },
+  { code: 'HR', name: 'Croatia' },
+  { code: 'CU', name: 'Cuba' },
+  { code: 'CY', name: 'Cyprus' },
+  { code: 'CZ', name: 'Czechia' },
+  { code: 'DJ', name: 'Djibouti' },
+  { code: 'DM', name: 'Dominica' },
+  { code: 'DO', name: 'Dominican Republic' },
+  { code: 'EC', name: 'Ecuador' },
+  { code: 'EG', name: 'Egypt' },
+  { code: 'SV', name: 'El Salvador' },
+  { code: 'GQ', name: 'Equatorial Guinea' },
+  { code: 'ER', name: 'Eritrea' },
+  { code: 'EE', name: 'Estonia' },
+  { code: 'SZ', name: 'Eswatini' },
+  { code: 'ET', name: 'Ethiopia' },
+  { code: 'FJ', name: 'Fiji' },
+  { code: 'GA', name: 'Gabon' },
+  { code: 'GM', name: 'Gambia' },
+  { code: 'GE', name: 'Georgia' },
+  { code: 'GH', name: 'Ghana' },
+  { code: 'GR', name: 'Greece' },
+  { code: 'GD', name: 'Grenada' },
+  { code: 'GT', name: 'Guatemala' },
+  { code: 'GN', name: 'Guinea' },
+  { code: 'GW', name: 'Guinea-Bissau' },
+  { code: 'GY', name: 'Guyana' },
+  { code: 'HT', name: 'Haiti' },
+  { code: 'HN', name: 'Honduras' },
+  { code: 'HU', name: 'Hungary' },
+  { code: 'IS', name: 'Iceland' },
+  { code: 'ID', name: 'Indonesia' },
+  { code: 'IR', name: 'Iran' },
+  { code: 'IQ', name: 'Iraq' },
+  { code: 'IL', name: 'Israel' },
+  { code: 'JM', name: 'Jamaica' },
+  { code: 'JO', name: 'Jordan' },
+  { code: 'KZ', name: 'Kazakhstan' },
+  { code: 'KE', name: 'Kenya' },
+  { code: 'KI', name: 'Kiribati' },
+  { code: 'KW', name: 'Kuwait' },
+  { code: 'KG', name: 'Kyrgyzstan' },
+  { code: 'LA', name: 'Laos' },
+  { code: 'LV', name: 'Latvia' },
+  { code: 'LB', name: 'Lebanon' },
+  { code: 'LS', name: 'Lesotho' },
+  { code: 'LR', name: 'Liberia' },
+  { code: 'LY', name: 'Libya' },
+  { code: 'LI', name: 'Liechtenstein' },
+  { code: 'LT', name: 'Lithuania' },
+  { code: 'LU', name: 'Luxembourg' },
+  { code: 'MG', name: 'Madagascar' },
+  { code: 'MW', name: 'Malawi' },
+  { code: 'MY', name: 'Malaysia' },
+  { code: 'MV', name: 'Maldives' },
+  { code: 'ML', name: 'Mali' },
+  { code: 'MT', name: 'Malta' },
+  { code: 'MH', name: 'Marshall Islands' },
+  { code: 'MR', name: 'Mauritania' },
+  { code: 'MU', name: 'Mauritius' },
+  { code: 'FM', name: 'Micronesia' },
+  { code: 'MD', name: 'Moldova' },
+  { code: 'MC', name: 'Monaco' },
+  { code: 'MN', name: 'Mongolia' },
+  { code: 'ME', name: 'Montenegro' },
+  { code: 'MA', name: 'Morocco' },
+  { code: 'MZ', name: 'Mozambique' },
+  { code: 'MM', name: 'Myanmar' },
+  { code: 'NA', name: 'Namibia' },
+  { code: 'NR', name: 'Nauru' },
+  { code: 'NP', name: 'Nepal' },
+  { code: 'NI', name: 'Nicaragua' },
+  { code: 'NE', name: 'Niger' },
+  { code: 'NG', name: 'Nigeria' },
+  { code: 'KP', name: 'North Korea' },
+  { code: 'MK', name: 'North Macedonia' },
+  { code: 'OM', name: 'Oman' },
+  { code: 'PK', name: 'Pakistan' },
+  { code: 'PW', name: 'Palau' },
+  { code: 'PS', name: 'Palestine' },
+  { code: 'PA', name: 'Panama' },
+  { code: 'PG', name: 'Papua New Guinea' },
+  { code: 'PY', name: 'Paraguay' },
+  { code: 'PH', name: 'Philippines' },
+  { code: 'PL', name: 'Poland' },
+  { code: 'QA', name: 'Qatar' },
+  { code: 'RO', name: 'Romania' },
+  { code: 'RU', name: 'Russia' },
+  { code: 'RW', name: 'Rwanda' },
+  { code: 'KN', name: 'Saint Kitts and Nevis' },
+  { code: 'LC', name: 'Saint Lucia' },
+  { code: 'VC', name: 'Saint Vincent and the Grenadines' },
+  { code: 'WS', name: 'Samoa' },
+  { code: 'SM', name: 'San Marino' },
+  { code: 'ST', name: 'Sao Tome and Principe' },
+  { code: 'SA', name: 'Saudi Arabia' },
+  { code: 'SN', name: 'Senegal' },
+  { code: 'RS', name: 'Serbia' },
+  { code: 'SC', name: 'Seychelles' },
+  { code: 'SL', name: 'Sierra Leone' },
+  { code: 'SK', name: 'Slovakia' },
+  { code: 'SI', name: 'Slovenia' },
+  { code: 'SB', name: 'Solomon Islands' },
+  { code: 'SO', name: 'Somalia' },
+  { code: 'SS', name: 'South Sudan' },
+  { code: 'LK', name: 'Sri Lanka' },
+  { code: 'SD', name: 'Sudan' },
+  { code: 'SR', name: 'Suriname' },
+  { code: 'SY', name: 'Syria' },
+  { code: 'TW', name: 'Taiwan' },
+  { code: 'TJ', name: 'Tajikistan' },
+  { code: 'TZ', name: 'Tanzania' },
+  { code: 'TH', name: 'Thailand' },
+  { code: 'TL', name: 'Timor-Leste' },
+  { code: 'TG', name: 'Togo' },
+  { code: 'TO', name: 'Tonga' },
+  { code: 'TT', name: 'Trinidad and Tobago' },
+  { code: 'TN', name: 'Tunisia' },
+  { code: 'TR', name: 'Turkey' },
+  { code: 'TM', name: 'Turkmenistan' },
+  { code: 'TV', name: 'Tuvalu' },
+  { code: 'UG', name: 'Uganda' },
+  { code: 'UA', name: 'Ukraine' },
+  { code: 'UY', name: 'Uruguay' },
+  { code: 'UZ', name: 'Uzbekistan' },
+  { code: 'VU', name: 'Vanuatu' },
+  { code: 'VA', name: 'Vatican City' },
+  { code: 'VE', name: 'Venezuela' },
+  { code: 'VN', name: 'Vietnam' },
+  { code: 'YE', name: 'Yemen' },
+  { code: 'ZM', name: 'Zambia' },
+  { code: 'ZW', name: 'Zimbabwe' },
+];
 
 export default function PaymentPage() {
   const router = useRouter();
@@ -442,6 +696,44 @@ export default function PaymentPage() {
       }
     }
     fetchBalance();
+  }, []);
+
+  // Auto-detect user country via IP geolocation with fallback to browser language
+  useEffect(() => {
+    async function detectCountry() {
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.country_code && COUNTRIES_LIST.some(c => c.code === data.country_code)) {
+            setCountry(data.country_code);
+            return;
+          }
+        }
+      } catch (e) {}
+
+      try {
+        const res2 = await fetch('https://ipwho.is/');
+        if (res2.ok) {
+          const data2 = await res2.json();
+          if (data2 && data2.country_code && COUNTRIES_LIST.some(c => c.code === data2.country_code)) {
+            setCountry(data2.country_code);
+            return;
+          }
+        }
+      } catch (e) {}
+
+      if (navigator.language) {
+        const parts = navigator.language.split('-');
+        if (parts.length > 1) {
+          const inferred = parts[1].toUpperCase();
+          if (COUNTRIES_LIST.some(c => c.code === inferred)) {
+            setCountry(inferred);
+          }
+        }
+      }
+    }
+    detectCountry();
   }, []);
 
   // Initialize PaymentIntent from backend

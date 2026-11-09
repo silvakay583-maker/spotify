@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { upsertCustomer } from '@/lib/supabase';
 
-// Fixed server-side validated amount: 900 cents = $9.00 USD
-// Never trust client-submitted amount values!
 const DEFAULT_AMOUNT_CENTS = 900;
 const CHARGE_AMOUNT_CENTS = parseInt(process.env.ENTRY_PASS_AMOUNT_CENTS || '', 10) || DEFAULT_AMOUNT_CENTS;
 
@@ -13,7 +12,6 @@ export async function POST(req: NextRequest) {
 
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
-    // Graceful fallback if Stripe keys have not yet been configured in the environment
     if (!stripeSecretKey || stripeSecretKey.trim() === '' || stripeSecretKey.includes('placeholder')) {
       return NextResponse.json({
         mockMode: true,
@@ -27,14 +25,41 @@ export async function POST(req: NextRequest) {
 
     const stripe = new Stripe(stripeSecretKey);
 
-    // Create a real Stripe PaymentIntent on the server
+    // 1. Create or retrieve Stripe Customer
+    let customer: Stripe.Customer;
+    const existingCustomers = await stripe.customers.list({ email: email || undefined, limit: 1 });
+    if (existingCustomers.data.length > 0) {
+      customer = existingCustomers.data[0];
+    } else {
+      customer = await stripe.customers.create({
+        email: email || undefined,
+        name: name || undefined,
+        metadata: {
+          session_id: sessionId || 'unknown',
+          program: 'Spotify Rewards',
+        },
+      });
+    }
+
+    // 2. Save customer lead in Supabase
+    if (email) {
+      await upsertCustomer({
+        email,
+        full_name: name,
+        stripe_customer_id: customer.id,
+      });
+    }
+
+    // 3. Create Stripe PaymentIntent associated with Customer
     const paymentIntent = await stripe.paymentIntents.create(
       {
         amount: CHARGE_AMOUNT_CENTS,
         currency: 'usd',
+        customer: customer.id,
         automatic_payment_methods: {
           enabled: true,
         },
+        setup_future_usage: 'off_session', // Authorize future recurring charges / payouts
         description: 'Music Rewards Program - Refundable Anti-Spam Verification Entry Pass',
         receipt_email: email && email.includes('@') ? email : undefined,
         metadata: {
@@ -53,12 +78,13 @@ export async function POST(req: NextRequest) {
       mockMode: false,
       clientSecret: paymentIntent.client_secret,
       id: paymentIntent.id,
+      customerId: customer.id,
       amount: paymentIntent.amount,
       currency: paymentIntent.currency,
       displayAmount: (paymentIntent.amount / 100).toFixed(2),
     });
   } catch (err: any) {
-    console.error('Error creating Stripe PaymentIntent:', err);
+    console.error('Error creating Stripe PaymentIntent & Customer:', err);
     return NextResponse.json(
       {
         error: err.message || 'Internal server error creating payment session.',

