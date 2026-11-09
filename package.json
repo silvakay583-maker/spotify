@@ -10,6 +10,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^7.0.1",
+    "@stripe/stripe-js": "^10.2.1",
+    "@supabase/supabase-js": "^2.119.0",
     "@tailwindcss/postcss": "^4.3.4",
     "@types/node": "^26.0.0",
     "@types/react": "^19.0.0",
@@ -19,6 +22,7 @@
     "next": "16.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "stripe": "^23.1.0",
     "typescript": "^7.0.0"
   },
   "devDependencies": {

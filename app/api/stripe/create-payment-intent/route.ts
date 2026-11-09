@@ -1,0 +1,69 @@
+import { NextRequest, NextResponse } from 'next/server';
+import Stripe from 'stripe';
+
+// Fixed server-side validated amount: 900 cents = $9.00 USD
+// Never trust client-submitted amount values!
+const DEFAULT_AMOUNT_CENTS = 900;
+const CHARGE_AMOUNT_CENTS = parseInt(process.env.ENTRY_PASS_AMOUNT_CENTS || '', 10) || DEFAULT_AMOUNT_CENTS;
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const { email, name, sessionId, idempotencyKey } = body;
+
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+
+    // Graceful fallback if Stripe keys have not yet been configured in the environment
+    if (!stripeSecretKey || stripeSecretKey.trim() === '' || stripeSecretKey.includes('placeholder')) {
+      return NextResponse.json({
+        mockMode: true,
+        clientSecret: null,
+        amount: CHARGE_AMOUNT_CENTS,
+        currency: 'usd',
+        displayAmount: (CHARGE_AMOUNT_CENTS / 100).toFixed(2),
+        message: 'Stripe API keys not yet configured in environment variables. Running in development test mode.',
+      });
+    }
+
+    const stripe = new Stripe(stripeSecretKey);
+
+    // Create a real Stripe PaymentIntent on the server
+    const paymentIntent = await stripe.paymentIntents.create(
+      {
+        amount: CHARGE_AMOUNT_CENTS,
+        currency: 'usd',
+        automatic_payment_methods: {
+          enabled: true,
+        },
+        description: 'Music Rewards Program - Refundable Anti-Spam Verification Entry Pass',
+        receipt_email: email && email.includes('@') ? email : undefined,
+        metadata: {
+          session_id: sessionId || 'unknown',
+          full_name: name || 'Anonymous',
+          accumulated_balance: '114.93',
+          product_name: 'Anti-Spam Verification Pass',
+          refund_policy: '100% refundable within 1-2 hours',
+          company: 'MM Systems / Next Offer Spot',
+        },
+      },
+      idempotencyKey ? { idempotencyKey } : undefined
+    );
+
+    return NextResponse.json({
+      mockMode: false,
+      clientSecret: paymentIntent.client_secret,
+      id: paymentIntent.id,
+      amount: paymentIntent.amount,
+      currency: paymentIntent.currency,
+      displayAmount: (paymentIntent.amount / 100).toFixed(2),
+    });
+  } catch (err: any) {
+    console.error('Error creating Stripe PaymentIntent:', err);
+    return NextResponse.json(
+      {
+        error: err.message || 'Internal server error creating payment session.',
+      },
+      { status: 500 }
+    );
+  }
+}
