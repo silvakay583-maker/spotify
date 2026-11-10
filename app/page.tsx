@@ -1,266 +1,689 @@
 'use client';
 
+import { useState } from 'react';
+import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
-import MetaPixelTracker from './components/MetaPixelTracker';
+import {
+  ArrowRight,
+  CheckCircle2,
+  Headphones,
+  Lock,
+  ShieldCheck,
+  Tag,
+} from 'lucide-react';
 
-const OFFER_URL = 'https://giftclick.org/?offer_id=5487&aff_id=208871';
-const BRAND_LOGO_URL = 'https://tradenetlease.com/wp-content/uploads/2023/02/tenant-page-logos-25.png';
+interface Campaign {
+  id: string;
+  brand: string;
+  brandTag: string;
+  brandColor: string;
+  brandBorder: string;
+  accentBg: string;
+  title: string;
+  status: 'active' | 'closed';
+  statusBadge: string;
+  rewardValue: string;
+  rewardSub: string;
+  category: string;
+  slotsText: string;
+  dateBadge: string;
+  description: string;
+  highlights: string[];
+  href: string;
+  secondaryHref?: string;
+  secondaryText?: string;
+  isHot?: boolean;
+}
 
-export default function TractorSupplyLandingPage() {
-  const [onlineUsers, setOnlineUsers] = useState(841);
-  const [logoSrc, setLogoSrc] = useState('/brand-logo.png');
+const CAMPAIGNS: Campaign[] = [
+  {
+    id: 'spotify-evaluator-2026',
+    brand: 'Spotify',
+    brandTag: 'Official Partner',
+    brandColor: 'text-[#107c37]',
+    brandBorder: 'border-emerald-500',
+    accentBg: 'bg-emerald-500/10',
+    title: 'Music Track & Audio Evaluator Program',
+    status: 'active',
+    statusBadge: 'Open & Recruiting',
+    rewardValue: 'Up to $350 / day',
+    rewardSub: 'Instant Payout per Batch',
+    category: 'Audio Streaming & Music QA',
+    slotsText: '7 Positions Available Today',
+    dateBadge: 'Active Right Now',
+    description:
+      'Evaluate new audio releases from top global hitmakers and independent music producers. Rate song melody, lyrics and rhythm on your phone and withdraw daily commissions directly.',
+    highlights: [
+      'Earphones/Headphones',
+      'Daily Bank Transfer',
+      'No Experience Required',
+    ],
+    href: '/spotify',
+    secondaryHref: '/spotify/rewards',
+    secondaryText: 'Direct Evaluator Chat',
+    isHot: true,
+  },
+  {
+    id: 'tractor-supply-savings',
+    brand: 'Tractor Supply Co.',
+    brandTag: 'Exclusive Partner',
+    brandColor: 'text-[#c8102e]',
+    brandBorder: 'border-[#c8102e]',
+    accentBg: 'bg-rose-500/10',
+    title: '$500 in Tractor Supply Savings Program',
+    status: 'active',
+    statusBadge: 'Open & Recruiting',
+    rewardValue: '$500 Savings',
+    rewardSub: 'Verified Retail Voucher',
+    category: 'Retail & Consumer Savings',
+    slotsText: 'Open Enrollment',
+    dateBadge: 'Active Today',
+    description:
+      'Complete qualifying steps and sponsored deals to claim your exclusive $500 Tractor Supply store savings voucher with verified partner redemption.',
+    highlights: [
+      'Fast Mobile Qualification',
+      'High-Value Savings Voucher',
+      'Verified Partner Offer',
+    ],
+    href: '/tractorsupplyco',
+    isHot: true,
+  },
+  {
+    id: 'netflix-preview-qa',
+    brand: 'Netflix',
+    brandTag: 'Streaming Labs',
+    brandColor: 'text-[#e50914]',
+    brandBorder: 'border-rose-300',
+    accentBg: 'bg-rose-50',
+    title: 'Teaser & Subtitle Audience Engagement Test',
+    status: 'closed',
+    statusBadge: 'Campaign Ended (Quota Reached)',
+    rewardValue: '$45.00 / test batch',
+    rewardSub: 'Total Paid: $22,500',
+    category: 'Video Streaming & Subtitles',
+    slotsText: '500 / 500 Applicants Approved',
+    dateBadge: 'Concluded 3 Days Ago',
+    description:
+      'Evaluated 30-second localized trailers to verify subtitle synchronization, comedic timing, and viewer retention scores prior to season premieres.',
+    highlights: ['Closed Intake', 'Full Quota Reached', 'Vouchers Disbursed'],
+    href: '/spotify',
+  },
+  {
+    id: 'amazon-shopper-panel',
+    brand: 'Amazon',
+    brandTag: 'Retail Panel',
+    brandColor: 'text-[#d97706]',
+    brandBorder: 'border-amber-300',
+    accentBg: 'bg-amber-50',
+    title: 'Consumer Grocery Receipt & Brand Pulse Panel',
+    status: 'closed',
+    statusBadge: 'Intake Closed (Waitlist Only)',
+    rewardValue: '$120.00 / month',
+    rewardSub: 'Recurring Monthly Balance',
+    category: 'Retail Analytics & Receipts',
+    slotsText: 'Capacity Cap Reached',
+    dateBadge: 'Closed Last Week',
+    description:
+      'Select monthly consumer group uploading shopping receipts and sharing brief opinions on weekly grocery items with guaranteed electronic gift cards.',
+    highlights: ['Intake Cap 1,200', 'Waitlist Active', 'Next Intake Q3'],
+    href: '/spotify',
+  },
+  {
+    id: 'tiktok-sound-curator',
+    brand: 'TikTok',
+    brandTag: 'Creator Insights',
+    brandColor: 'text-[#0ea5e9]',
+    brandBorder: 'border-sky-300',
+    accentBg: 'bg-sky-50',
+    title: 'Viral Audio Soundbite & Trend Categorization',
+    status: 'closed',
+    statusBadge: 'Campaign Completed',
+    rewardValue: '$28.50 / hour',
+    rewardSub: 'Total Paid: $14,200',
+    category: 'Social Media & Audio Trends',
+    slotsText: '250 / 250 Verified',
+    dateBadge: 'Closed 2 Weeks Ago',
+    description:
+      'Screened 15-second background audio clips to classify trending music subgenres and ensure platform safety standards before viral hashtag rollouts.',
+    highlights: ['Completed Round', 'All Funds Released', 'Archived'],
+    href: '/spotify',
+  },
+];
 
-  // Realistic subtle live users fluctuation around 840
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setOnlineUsers((prev) => {
-        const delta = Math.floor(Math.random() * 5) - 2; // -2 to +2
-        const updated = prev + delta;
-        return updated < 820 ? 835 : updated > 865 ? 850 : updated;
-      });
-    }, 4500);
-    return () => clearInterval(interval);
-  }, []);
+export default function NextOfferSpotHomePage() {
+  const [filter, setFilter] = useState<'all' | 'active' | 'closed'>('all');
 
-  const handleClaimClick = () => {
-    if (typeof window !== 'undefined') {
-      const win = window as any;
-      if (win.fbq) {
-        win.fbq('track', 'InitiateCheckout', {
-          content_name: 'Tractor Supply $500 Savings',
-          value: 500.0,
-          currency: 'USD',
-        });
-      }
-    }
-  };
+  const filteredCampaigns = CAMPAIGNS.filter((c) => {
+    if (filter === 'active') return c.status === 'active';
+    if (filter === 'closed') return c.status === 'closed';
+    return true;
+  });
+
+  const activeCount = CAMPAIGNS.filter((c) => c.status === 'active').length;
+  const closedCount = CAMPAIGNS.filter((c) => c.status === 'closed').length;
 
   return (
-    <div className="min-h-screen bg-[#F6F3EB] text-[#2D3139] font-sans antialiased py-6 px-4 sm:px-6 flex flex-col items-center justify-start">
-      {/* Meta Pixel Tracker */}
-      <MetaPixelTracker
-        eventName="PageView"
-        customData={{
-          content_name: 'Tractor Supply $500 Savings Offer Landing',
-          currency: 'USD',
-        }}
-      />
-
-      <div className="w-full max-w-[480px] mx-auto flex flex-col items-center">
-        {/* Top Live Status Pill */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-[#E5DFD5] shadow-xs text-xs sm:text-[13px] font-medium text-gray-700 mb-4 transition-all">
-          <span className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse inline-block" />
-          <span>
-            <strong className="font-semibold text-gray-900 tabular-nums">{onlineUsers}</strong> online now
-          </span>
+    <div className="min-h-screen bg-[#f3f6fb] text-slate-800 selection:bg-indigo-500 selection:text-white font-sans">
+      {/* Top Banner */}
+      <aside className="bg-gradient-to-r from-indigo-600 via-blue-600 to-emerald-600 text-white text-xs py-2.5 px-4 shadow-sm">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+          <div className="flex items-center gap-2 font-medium">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-300 animate-pulse" />
+            <span>
+              <strong>Next Offer Spot Hub:</strong> Verified partner campaigns, remote micro-tasks, and real-time payouts.
+            </span>
+          </div>
+          <div className="flex items-center gap-3 text-[11px] font-semibold text-indigo-100">
+            <span className="bg-white/15 px-2.5 py-0.5 rounded-full backdrop-blur-xs">
+              {activeCount} Active Campaigns Today
+            </span>
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">Zero Application Fees</span>
+          </div>
         </div>
+      </aside>
 
-        {/* ========================================================= */}
-        {/* CARD 1: MAIN PROMOTION & STEPS TO QUALIFY CARD            */}
-        {/* ========================================================= */}
-        <div className="w-full bg-white rounded-[26px] p-6 sm:p-8 shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-[#EDE8DE] flex flex-col items-center text-center">
-          {/* Brand Logo Container */}
-          <div className="w-full flex justify-center items-center py-2 min-h-[70px]">
-            <div className="relative w-[210px] sm:w-[240px] h-[72px]">
-              <Image
-                src={logoSrc}
-                alt="Tractor Supply Co. Official Logo"
-                fill
-                sizes="(max-width: 640px) 210px, 240px"
-                className="object-contain"
-                priority
-                referrerPolicy="no-referrer"
-                onError={() => {
-                  if (logoSrc !== BRAND_LOGO_URL) {
-                    setLogoSrc(BRAND_LOGO_URL);
-                  }
-                }}
-              />
+      {/* Navigation Header */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-18 sm:h-20 flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-700 flex items-center justify-center text-white font-black text-sm tracking-tight shadow-md shadow-indigo-600/25 group-hover:scale-105 transition-transform">
+              NOS
             </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-lg sm:text-xl font-black tracking-tight text-slate-900">
+                  Next Offer Spot
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  HUB
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Verified Remote Offers &amp; Rewards
+              </p>
+            </div>
+          </Link>
+
+          <nav className="hidden md:flex items-center gap-7 text-sm font-semibold text-slate-600">
+            <a
+              href="#campaigns"
+              className="hover:text-indigo-600 transition-colors flex items-center gap-1.5"
+            >
+              <span>All Offers</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600">
+                {CAMPAIGNS.length}
+              </span>
+            </a>
+            <a href="#how-it-works" className="hover:text-indigo-600 transition-colors">
+              How It Works
+            </a>
+            <a href="#trust-guarantee" className="hover:text-indigo-600 transition-colors">
+              Verified Payouts
+            </a>
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/spotify"
+              className="inline-flex items-center gap-2 bg-[#1ed760] hover:bg-[#1db954] text-slate-950 font-black text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-full transition-all duration-200 transform hover:scale-[1.03] shadow-md shadow-emerald-500/25"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-950 opacity-40" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-950" />
+              </span>
+              <span>Spotify ($350/day)</span>
+              <ArrowRight size={15} />
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <section className="relative pt-10 sm:pt-16 pb-12 sm:pb-16 px-4 sm:px-6 overflow-hidden bg-gradient-to-b from-white via-blue-50/40 to-[#f3f6fb] border-b border-slate-200/60">
+        <div className="absolute top-0 right-10 w-96 h-96 bg-indigo-200/35 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-20 left-10 w-80 h-80 bg-emerald-200/30 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="max-w-4xl mx-auto text-center relative z-10">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-indigo-200/80 mb-5 shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+            <span className="text-xs font-bold text-indigo-900 tracking-wide">
+              Next Offer Spot Central Directory • Real-Time Openings
+            </span>
           </div>
 
-          {/* Headline */}
-          <h1 className="text-[17px] sm:text-[19px] font-bold text-[#1E2229] leading-snug tracking-tight mt-3">
-            Complete the steps below to claim your
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-900 leading-[1.15] mb-5">
+            Discover Verified Remote Offers &amp;{' '}
+            <span className="bg-gradient-to-r from-indigo-600 via-blue-600 to-emerald-600 bg-clip-text text-transparent">
+              High-Payout Micro Tasks
+            </span>
           </h1>
 
-          {/* Subheading Highlight */}
-          <div className="text-[20px] sm:text-[23px] font-black text-[#C8102E] leading-tight tracking-tight mt-1 mb-5">
-            $500 in Tractor Supply savings
-          </div>
+          <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto mb-8 leading-relaxed font-normal">
+            We partner directly with leading media, retail, and tech corporations to host exclusive evaluation campaigns. Access open positions before slots fill up.
+          </p>
 
-          {/* Steps to Qualify Box */}
-          <div className="w-full rounded-2xl overflow-hidden bg-[#EDF3F8] border border-[#DEE7F0] text-left">
-            {/* Header */}
-            <div className="px-5 py-3.5 bg-[#E1EAF2] border-b border-[#D4E0EC]">
-              <h2 className="text-sm sm:text-[15px] font-bold text-[#1E2D3D] tracking-tight">
-                Steps to Qualify
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto">
+            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
+              <span className="text-xs text-slate-500 font-medium block">Daily Top Pay</span>
+              <strong className="text-lg sm:text-xl font-black text-emerald-600">$350.00</strong>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
+              <span className="text-xs text-slate-500 font-medium block">Open Offers</span>
+              <strong className="text-lg sm:text-xl font-black text-indigo-600">{activeCount} Live Now</strong>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
+              <span className="text-xs text-slate-500 font-medium block">Archived Offers</span>
+              <strong className="text-lg sm:text-xl font-black text-slate-700">{closedCount} Concluded</strong>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
+              <span className="text-xs text-slate-500 font-medium block">Access Fee</span>
+              <strong className="text-lg sm:text-xl font-black text-emerald-600">100% Free</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Campaigns Directory Section */}
+      <section id="campaigns" className="py-12 sm:py-16 px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-700 mb-1">
+                <span>Directory Catalog</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                Partner Campaigns &amp; Positions
               </h2>
             </div>
 
-            {/* Step 1 */}
-            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[#DFE7EE]">
-              <span className="font-bold text-[#C8102E] text-sm shrink-0 w-4">
-                1.
-              </span>
-              <span className="text-[13.5px] sm:text-[14px] font-medium text-[#334155] leading-snug">
-                Click on “Claim Now”
-              </span>
-            </div>
-
-            {/* Step 2 */}
-            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[#DFE7EE]">
-              <span className="font-bold text-[#C8102E] text-sm shrink-0 w-4">
-                2.
-              </span>
-              <span className="text-[13.5px] sm:text-[14px] font-medium text-[#334155] leading-snug">
-                Enter your email and basic information
-              </span>
-            </div>
-
-            {/* Step 3 */}
-            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[#DFE7EE]">
-              <span className="font-bold text-[#C8102E] text-sm shrink-0 w-4">
-                3.
-              </span>
-              <span className="text-[13.5px] sm:text-[14px] font-medium text-[#334155] leading-snug">
-                Complete 4–5 sponsored deals (required)
-              </span>
-            </div>
-
-            {/* Step 4 */}
-            <div className="flex items-center gap-3 px-5 py-3.5">
-              <span className="font-bold text-[#C8102E] text-sm shrink-0 w-4">
-                4.
-              </span>
-              <span className="text-[13.5px] sm:text-[14px] font-medium text-[#334155] leading-snug">
-                Claim your $500 in Tractor Supply savings
-              </span>
-            </div>
-          </div>
-
-          {/* Primary CTA Button */}
-          <a
-            href={OFFER_URL}
-            onClick={handleClaimClick}
-            className="w-full mt-6 bg-[#C8102E] hover:bg-[#A90D25] active:scale-[0.985] text-white font-extrabold text-[15px] sm:text-base tracking-wider uppercase py-4 px-6 rounded-2xl shadow-[0_4px_14px_rgba(200,16,46,0.35)] transition-all flex items-center justify-center cursor-pointer select-none text-center"
-          >
-            CLAIM NOW
-          </a>
-        </div>
-
-        {/* ========================================================= */}
-        {/* CARD 2: SOCIAL PROOF / TRUSTPILOT RATING CARD             */}
-        {/* ========================================================= */}
-        <div className="w-full bg-white rounded-[26px] p-6 sm:p-7 shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-[#EDE8DE] flex flex-col items-center text-center mt-5">
-          {/* Trustpilot 5 Stars */}
-          <div className="flex items-center justify-center gap-1.5 text-[#00B67A]">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <svg
-                key={star}
-                className="w-5 h-5 fill-current"
-                viewBox="0 0 24 24"
+            <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setFilter('all')}
+                className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors ${
+                  filter === 'all'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
-                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-              </svg>
-            ))}
+                All Campaigns ({CAMPAIGNS.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilter('active')}
+                className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1 ${
+                  filter === 'active'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-emerald-700 hover:text-emerald-800'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
+                Active Only ({activeCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilter('closed')}
+                className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors ${
+                  filter === 'closed'
+                    ? 'bg-slate-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Ended / Closed ({closedCount})
+              </button>
+            </div>
           </div>
 
-          {/* Rating */}
-          <div className="text-2xl sm:text-[26px] font-black text-[#1E2229] tracking-tight mt-2.5 mb-0.5">
-            4.9 out of 5
-          </div>
+          <div className="space-y-6">
+            {filteredCampaigns.map((c) => {
+              const isActive = c.status === 'active';
+              return (
+                <div
+                  key={c.id}
+                  className={`bg-white rounded-2xl p-6 sm:p-8 border transition-all relative overflow-hidden ${
+                    isActive
+                      ? c.id === 'spotify-evaluator-2026'
+                        ? 'border-2 border-emerald-500 shadow-xl shadow-emerald-500/10 hover:border-emerald-600'
+                        : 'border-2 border-red-500 shadow-xl shadow-red-500/10 hover:border-red-600'
+                      : 'border-slate-200 hover:border-slate-300 shadow-xs'
+                  }`}
+                >
+                  {isActive && (
+                    <div
+                      className={`absolute top-0 left-0 right-0 h-1.5 ${
+                        c.id === 'spotify-evaluator-2026'
+                          ? 'bg-gradient-to-r from-emerald-500 via-[#1ed760] to-teal-500'
+                          : 'bg-gradient-to-r from-red-600 via-[#c8102e] to-rose-500'
+                      }`}
+                    />
+                  )}
 
-          {/* Review Count */}
-          <div className="text-xs sm:text-[13px] text-gray-500 font-medium mb-2.5">
-            Based on 2,156 reviews
-          </div>
+                  <div className="flex flex-col lg:flex-row items-start justify-between gap-6">
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <span
+                          className={`font-black text-xs px-2.5 py-0.5 rounded-md border ${
+                            isActive
+                              ? c.id === 'spotify-evaluator-2026'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : 'bg-red-50 text-red-800 border-red-300'
+                              : 'bg-slate-100 text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          {c.brand} • {c.brandTag}
+                        </span>
 
-          {/* Trustpilot Branding */}
-          <div className="flex items-center gap-1.5 text-xs sm:text-[13px] font-bold text-[#00B67A]">
-            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-            </svg>
-            <span>Trustpilot</span>
+                        {isActive ? (
+                          <span
+                            className={`inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                              c.id === 'spotify-evaluator-2026'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : 'bg-red-100 text-red-800 border-red-300'
+                            }`}
+                          >
+                            <span
+                              className={`w-2 h-2 rounded-full animate-pulse ${
+                                c.id === 'spotify-evaluator-2026'
+                                  ? 'bg-emerald-500'
+                                  : 'bg-red-500'
+                              }`}
+                            />
+                            {c.statusBadge}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                            <Lock size={12} />
+                            {c.statusBadge}
+                          </span>
+                        )}
+
+                        <span className="text-xs text-slate-400 font-medium">
+                          {c.dateBadge}
+                        </span>
+                      </div>
+
+                      <h3 className="text-xl sm:text-2xl font-black text-slate-900 mb-2 leading-snug">
+                        {c.title}
+                      </h3>
+
+                      <p className="text-slate-600 text-sm leading-relaxed mb-4 max-w-2xl">
+                        {c.description}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        {c.highlights.map((h, i) => (
+                          <span
+                            key={i}
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-md border ${
+                              isActive
+                                ? 'bg-slate-50 text-slate-700 border-slate-200'
+                                : 'bg-slate-50 text-slate-500 border-slate-200'
+                            }`}
+                          >
+                            ✓ {h}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="w-full lg:w-72 shrink-0 flex flex-col justify-between sm:items-end p-4 sm:p-0 rounded-xl bg-slate-50 sm:bg-transparent border sm:border-0 border-slate-200">
+                      <div className="sm:text-right mb-4">
+                        <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider block">
+                          Verified Compensation
+                        </span>
+                        <strong
+                          className={`text-2xl sm:text-3xl font-black block tracking-tight ${
+                            isActive
+                              ? c.id === 'spotify-evaluator-2026'
+                                ? 'text-emerald-600'
+                                : 'text-[#c8102e]'
+                              : 'text-slate-700'
+                          }`}
+                        >
+                          {c.rewardValue}
+                        </strong>
+                        <span className="text-xs font-semibold text-slate-500 block mt-0.5">
+                          {c.rewardSub}
+                        </span>
+                        <span className="inline-block mt-2 text-[11px] font-bold px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600">
+                          {c.slotsText}
+                        </span>
+                      </div>
+
+                      <div className="w-full flex flex-col gap-2">
+                        {isActive ? (
+                          <>
+                            <Link
+                              href={c.href}
+                              className={`w-full inline-flex items-center justify-center gap-2 font-black text-sm py-3 px-5 rounded-xl transition-all transform hover:scale-[1.02] shadow-md ${
+                                c.id === 'spotify-evaluator-2026'
+                                  ? 'bg-[#1ed760] hover:bg-[#1db954] text-slate-950 shadow-emerald-500/25'
+                                  : 'bg-[#c8102e] hover:bg-[#a90d25] text-white shadow-red-500/25'
+                              }`}
+                            >
+                              <span>
+                                {c.id === 'spotify-evaluator-2026'
+                                  ? 'Open Spotify Offer Page'
+                                  : 'Open Tractor Supply Offer'}
+                              </span>
+                              <ArrowRight size={16} />
+                            </Link>
+
+                            {c.secondaryHref && (
+                              <Link
+                                href={c.secondaryHref}
+                                className="w-full inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-all"
+                              >
+                                <Headphones size={14} className="text-emerald-400" />
+                                <span>{c.secondaryText}</span>
+                              </Link>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              disabled
+                              className="w-full inline-flex items-center justify-center gap-1.5 bg-slate-100 text-slate-400 font-bold text-xs py-2.5 px-4 rounded-xl border border-slate-200 cursor-not-allowed"
+                            >
+                              <Lock size={13} />
+                              <span>Registration Closed</span>
+                            </button>
+                            <Link
+                              href="/spotify"
+                              className="w-full inline-flex items-center justify-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 py-1 transition-colors"
+                            >
+                              <span>Apply to Open Spotify Offer instead →</span>
+                            </Link>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
+      </section>
 
-        {/* ========================================================= */}
-        {/* CARD 3: FREQUENTLY ASKED QUESTIONS CARD                   */}
-        {/* ========================================================= */}
-        <div className="w-full bg-white rounded-[26px] p-6 sm:p-8 shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-[#EDE8DE] flex flex-col text-left mt-5">
-          {/* FAQ Kicker */}
-          <h2 className="text-xs sm:text-[13px] font-bold text-[#C8102E] uppercase tracking-wider mb-5">
-            FREQUENTLY ASKED QUESTIONS
-          </h2>
-
-          <div className="space-y-5">
-            {/* Q1 */}
-            <div>
-              <h3 className="text-sm sm:text-[15px] font-bold text-[#1E2229] mb-1.5">
-                Who is this offer for?
+      {/* Featured Campaign Spotlight */}
+      <section className="py-10 px-4 sm:px-6 bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border-y border-slate-200">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 border border-emerald-200 shadow-md flex flex-col lg:flex-row items-center justify-between gap-8">
+            <div className="flex-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 px-3 py-1 rounded-full bg-emerald-100 border border-emerald-300 inline-block mb-3">
+                Featured Campaign Spotlight
+              </span>
+              <h3 className="text-2xl sm:text-3xl font-black text-slate-900 mb-2">
+                Spotify Music Evaluator Program ($350/day)
               </h3>
-              <p className="text-xs sm:text-[13.5px] text-[#555E6C] leading-relaxed">
-                Eligibility depends on the promotion partner’s current requirements. Review the terms shown on the next page before participating.
+              <p className="text-slate-600 text-sm leading-relaxed mb-6 max-w-xl">
+                The primary live campaign currently accepting new participants with instant commission release. Review sample tracks to test the evaluation platform today.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  href="/spotify"
+                  className="inline-flex items-center gap-2 bg-[#1ed760] hover:bg-[#1db954] text-slate-950 font-black text-sm px-6 py-3 rounded-xl transition-all shadow-md shadow-emerald-500/20"
+                >
+                  <span>Go to Offer Details</span>
+                  <ArrowRight size={16} />
+                </Link>
+                <Link
+                  href="/spotify/rewards"
+                  className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm px-6 py-3 rounded-xl transition-all"
+                >
+                  <span>Open Audio Funnel</span>
+                </Link>
+              </div>
+            </div>
+
+            <div className="w-full lg:w-80 shrink-0">
+              <Link href="/spotify" className="block group">
+                <div className="relative rounded-xl overflow-hidden border border-emerald-300 shadow-md bg-black group-hover:scale-105 transition-transform">
+                  <Image
+                    src="/spotify-hero-banner.webp"
+                    alt="Spotify Music Evaluator Banner"
+                    width={500}
+                    height={300}
+                    className="w-full h-auto object-cover block"
+                    priority
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-3 text-xs text-white">
+                    <span className="font-bold flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Session Active
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How Next Offer Spot Works */}
+      <section id="how-it-works" className="py-14 sm:py-18 px-4 sm:px-6 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 inline-block mb-3">
+              Process
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mb-2">
+              How Next Offer Spot Distributes Campaigns
+            </h2>
+            <p className="text-slate-600 text-sm sm:text-base">
+              A clear, verified pathway from corporate sponsorship to evaluator payout.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-base mb-4 shadow-sm shadow-indigo-600/30">
+                1
+              </div>
+              <h4 className="font-black text-slate-900 text-base mb-2">
+                Dedicated Route Per Offer
+              </h4>
+              <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                Each verified partner gets a custom sub-path (e.g. <code>/spotify</code> or <code>/tractorsupplyco</code>) containing complete instructions, terms, and direct qualification access.
               </p>
             </div>
 
-            {/* Q2 */}
-            <div>
-              <h3 className="text-sm sm:text-[15px] font-bold text-[#1E2229] mb-1.5">
-                How much can I save?
-              </h3>
-              <p className="text-xs sm:text-[13.5px] text-[#555E6C] leading-relaxed">
-                Eligible participants may qualify for $500 in Tractor Supply savings after completing the stated requirements.
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-base mb-4 shadow-sm shadow-emerald-600/30">
+                2
+              </div>
+              <h4 className="font-black text-slate-900 text-base mb-2">
+                Live Intake Monitoring
+              </h4>
+              <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                Positions are tracked in real-time. When a partner’s quota is achieved, the campaign status updates automatically to prevent unpaid work.
               </p>
             </div>
 
-            {/* Q3 */}
-            <div>
-              <h3 className="text-sm sm:text-[15px] font-bold text-[#1E2229] mb-1.5">
-                What are sponsored deals?
-              </h3>
-              <p className="text-xs sm:text-[13.5px] text-[#555E6C] leading-relaxed">
-                Sponsored deals are third-party offers that may include trials, subscriptions, purchases, or app activities. Each deal shows its own terms and any cost before you choose it.
-              </p>
-            </div>
-
-            {/* Q4 */}
-            <div>
-              <h3 className="text-sm sm:text-[15px] font-bold text-[#1E2229] mb-1.5">
-                How many deals do I need to complete?
-              </h3>
-              <p className="text-xs sm:text-[13.5px] text-[#555E6C] leading-relaxed">
-                The promotion typically requires completing 4–5 qualifying deals. The exact rules appear on the partner’s eligibility page.
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-base mb-4 shadow-sm shadow-blue-600/30">
+                3
+              </div>
+              <h4 className="font-black text-slate-900 text-base mb-2">
+                Instant Accounting &amp; Cashout
+              </h4>
+              <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                Evaluators finish their assigned batches and generate signed documentation with immediate transfer capability to their preferred account.
               </p>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* Footer & Compliance Disclaimer */}
-        <footer className="w-full mt-7 mb-6 text-center text-[11px] text-[#848B96] space-y-3 leading-relaxed px-2">
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-gray-500 font-medium">
-            <a href={OFFER_URL} className="hover:text-gray-700 transition-colors">
-              Terms &amp; Conditions
-            </a>
-            <span>•</span>
-            <a href={OFFER_URL} className="hover:text-gray-700 transition-colors">
-              Privacy Policy
-            </a>
-            <span>•</span>
-            <a href={OFFER_URL} className="hover:text-gray-700 transition-colors">
-              FAQ &amp; Help
-            </a>
+      {/* Trust & Verification Section */}
+      <section id="trust-guarantee" className="py-10 px-4 sm:px-6 bg-slate-900 text-white">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+              <ShieldCheck className="w-7 h-7" />
+            </div>
+            <div>
+              <h4 className="font-black text-white text-base">
+                Next Offer Spot Partner Verification
+              </h4>
+              <p className="text-xs sm:text-sm text-slate-400 max-w-xl">
+                Zero fees for participants. All campaigns undergo legal and compensation verification before publishing to the hub.
+              </p>
+            </div>
           </div>
 
-          <p>
-            Tractor Supply Co. trademarks and logos are the property of Tractor Supply Company. This independent promotional rewards program is sponsored and operated by GiftClick.
-          </p>
+          <div className="flex flex-wrap items-center justify-center gap-4 text-xs font-bold text-slate-300">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 size={16} className="text-emerald-400" />
+              Verified Escrow
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 size={16} className="text-emerald-400" />
+              Free Access
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 size={16} className="text-emerald-400" />
+              Direct USD Payouts
+            </span>
+          </div>
+        </div>
+      </section>
 
-          <p>&copy; {new Date().getFullYear()} All rights reserved.</p>
-        </footer>
-      </div>
+      {/* Footer */}
+      <footer className="py-12 px-4 sm:px-6 bg-white border-t border-slate-200 text-xs text-slate-500">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-black text-xs">
+              NOS
+            </div>
+            <span className="font-black text-slate-900 text-base">Next Offer Spot</span>
+            <span className="text-slate-400 text-xs">| Central Offers Hub</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-5 sm:gap-6 text-slate-600 font-semibold">
+            <Link href="/spotify" className="hover:text-emerald-600 transition-colors">
+              Spotify ($350/day)
+            </Link>
+            <Link href="/tractorsupplyco" className="hover:text-red-600 transition-colors">
+              Tractor Supply ($500)
+            </Link>
+            <Link href="/politicasdeprivacidade" className="hover:text-indigo-600 transition-colors">
+              Políticas de Privacidade
+            </Link>
+            <Link href="/suporte" className="hover:text-indigo-600 transition-colors">
+              Suporte
+            </Link>
+          </div>
+
+          <div className="text-slate-400 text-[11px]">
+            &copy; {new Date().getFullYear()} Next Offer Spot LLC. All rights reserved.
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
