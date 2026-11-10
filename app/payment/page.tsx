@@ -116,6 +116,15 @@ function StripePaymentForm({
       if (error) {
         setErrorMessage(error.message || 'An error occurred during payment processing.');
         setIsProcessing(false);
+        recordPaymentInSupabase({
+          email: email.trim(),
+          full_name: fullName.trim(),
+          amount: 9.0,
+          currency: 'usd',
+          status: 'failed',
+          error_message: error.message || 'Payment failed',
+          country,
+        }).catch((e) => console.warn('Supabase payment failure record notice:', e));
       } else if (paymentIntent && paymentIntent.status === 'succeeded') {
         setIsProcessing(false);
         onSuccess();
@@ -127,6 +136,15 @@ function StripePaymentForm({
     } catch (err: any) {
       setErrorMessage(err.message || 'Unexpected payment error.');
       setIsProcessing(false);
+      recordPaymentInSupabase({
+        email: email.trim(),
+        full_name: fullName.trim(),
+        amount: 9.0,
+        currency: 'usd',
+        status: 'failed',
+        error_message: err.message || 'Unexpected payment error',
+        country,
+      }).catch((e) => console.warn('Supabase payment failure record notice:', e));
     }
   };
 
@@ -1064,16 +1082,6 @@ export default function PaymentPage() {
                 <span>100% Refundable</span>
               </div>
             </div>
-
-            {/* Backend Balance Notice */}
-            {balanceData.isDemo && (
-              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[11px] text-gray-400 flex items-center gap-2">
-                <Info className="w-3.5 h-3.5 text-[#1db954] shrink-0" />
-                <span>
-                  Accumulated balance loaded from session backend ({balanceData.formatted} USD demonstration data).
-                </span>
-              </div>
-            )}
           </div>
 
           {/* ========================================================= */}

