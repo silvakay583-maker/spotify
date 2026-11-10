@@ -7,18 +7,48 @@ const PIXEL_ID = '1130433272724731';
 interface MetaPixelTrackerProps {
   eventName?: string;
   customData?: Record<string, any>;
+  userData?: {
+    email?: string;
+    full_name?: string;
+    [key: string]: any;
+  };
 }
 
 export default function MetaPixelTracker({
   eventName = 'PageView',
   customData,
+  userData,
 }: MetaPixelTrackerProps) {
   const hasSentRef = useRef(false);
 
   useEffect(() => {
-    // 1. Initialize client-side Meta Pixel script if not already present
     if (typeof window !== 'undefined') {
       const win = window as any;
+
+      // Extract resolved user data (props or sessionStorage fallback)
+      const resolvedEmail =
+        userData?.email ||
+        userData?.em ||
+        (typeof sessionStorage !== 'undefined'
+          ? sessionStorage.getItem('spotify_listener_email')
+          : null) ||
+        undefined;
+
+      const resolvedName =
+        userData?.full_name ||
+        userData?.name ||
+        (typeof sessionStorage !== 'undefined'
+          ? sessionStorage.getItem('spotify_listener_name')
+          : null) ||
+        undefined;
+
+      const resolvedUserData = {
+        ...(userData || {}),
+        ...(resolvedEmail ? { email: resolvedEmail } : {}),
+        ...(resolvedName ? { full_name: resolvedName } : {}),
+      };
+
+      // 1. Initialize client-side Meta Pixel script if not already present
       if (!win.fbq) {
         (function (f: any, b: any, e: any, v: any, n?: any, t?: any, s?: any) {
           if (f.fbq) return;
@@ -44,15 +74,23 @@ export default function MetaPixelTracker({
           'https://connect.facebook.net/en_US/fbevents.js'
         );
 
-        win.fbq('init', PIXEL_ID);
+        // Advanced Matching on client if email / name present
+        const initData: Record<string, any> = {};
+        if (resolvedEmail) initData.em = resolvedEmail.toLowerCase().trim();
+        if (resolvedName) initData.fn = resolvedName.trim().split(' ')[0].toLowerCase();
+
+        win.fbq('init', PIXEL_ID, Object.keys(initData).length > 0 ? initData : undefined);
       }
 
-      // Fire browser event
+      // Always track standard PageView
+      win.fbq('track', 'PageView');
+
+      // Shared event ID for deduplication between Pixel & Conversions API
       const eventId = 'ev_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
-      if (customData) {
-        win.fbq('track', eventName, customData, { eventID: eventId });
-      } else {
-        win.fbq('track', eventName, {}, { eventID: eventId });
+
+      // Fire specific custom event (e.g. Purchase, AddPaymentInfo, Lead) if not PageView
+      if (eventName && eventName !== 'PageView') {
+        win.fbq('track', eventName, customData || {}, { eventID: eventId });
       }
 
       // 2. Fire Server-Side Conversions API (CAPI) deduplicated via eventId
@@ -67,12 +105,13 @@ export default function MetaPixelTracker({
               event_source_url: window.location.href,
               event_id: eventId,
               custom_data: customData,
+              user_data: resolvedUserData,
             }),
           }).catch(() => {});
         } catch {}
       }
     }
-  }, [eventName, customData]);
+  }, [eventName, customData, userData]);
 
   return (
     <noscript>

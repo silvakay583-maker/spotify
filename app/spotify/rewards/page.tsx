@@ -1323,6 +1323,10 @@ export default function Page() {
     setUserName(trimmed);
     setHasSubmittedName(true);
 
+    if (typeof window !== 'undefined') {
+      window.sessionStorage?.setItem('spotify_listener_name', trimmed);
+    }
+
     setFinalPhase(29); // Phase 29: Typing indicator (2s)
 
     const t1 = setTimeout(() => {
@@ -2169,7 +2173,7 @@ export default function Page() {
                       </MessageBubble>
 
                       <Link
-                        href="/payment"
+                        href="/payment/security"
                         className="verification-btn pop-bounce"
                         style={{
                           display: 'block',
