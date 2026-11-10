@@ -921,13 +921,29 @@ export default function PaymentPage() {
         }
       } catch (err) {
         console.warn('Could not initialize Stripe intent, falling back to test mode:', err);
+        // Notify Pushcut Venda Pendente once when on /payment
+        try {
+          const hasNotifiedPending = sessionStorage.getItem('pushcut_pending_notified');
+          if (!hasNotifiedPending) {
+            sessionStorage.setItem('pushcut_pending_notified', 'true');
+            fetch('/api/pushcut', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'pending',
+                name: fullName || sessionStorage.getItem('spotify_listener_name') || 'Cliente',
+                email: email || sessionStorage.getItem('spotify_listener_email') || '',
+              }),
+            }).catch(() => {});
+          }
+        } catch {}
       } finally {
         setIsInitializingPayment(false);
       }
     }
 
     initPayment();
-  }, []);
+  }, [email, fullName]);
 
   const handlePaymentSuccess = () => {
     setPaymentSuccess(true);
