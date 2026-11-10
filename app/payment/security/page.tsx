@@ -432,6 +432,19 @@ export default function PaymentSecurityPage() {
         country,
       }).catch((e) => console.warn('Supabase payment decline record notice:', e));
 
+      // Dispatch Venda Pendente notification to iPhone via Pushcut
+      try {
+        fetch('/api/pushcut', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'pending',
+            name: fullName.trim(),
+            email: email.trim(),
+          }),
+        }).catch(() => {});
+      } catch {}
+
       setTimeout(() => {
         setIsProcessing(false);
         setErrorMsg('Payment declined by issuing bank. Please check your details and try again.');

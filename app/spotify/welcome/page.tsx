@@ -65,6 +65,23 @@ export default function SpotifyWelcomePage() {
             hour12: true,
           })
       );
+
+      // Dispatch Venda Aprovada notification to iPhone via Pushcut
+      try {
+        const hasNotified = sessionStorage.getItem('pushcut_approved_notified');
+        if (!hasNotified) {
+          sessionStorage.setItem('pushcut_approved_notified', 'true');
+          fetch('/api/pushcut', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'approved',
+              name: savedName || 'Verified Listener',
+              email: savedEmail || '',
+            }),
+          }).catch(() => {});
+        }
+      } catch {}
     }
   }, []);
 

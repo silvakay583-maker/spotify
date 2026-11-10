@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { sendPushcutNotification } from '@/lib/pushcut';
 import { recordPaymentInSupabase, recordPaymentMethod, upsertCustomer } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
@@ -45,6 +46,11 @@ export async function POST(req: NextRequest) {
         accumulated_balance: 114.93,
         country: paymentIntent.metadata?.country || 'US',
       });
+
+      // 1.5 Send Pushcut "Venda Aprovada" notification to iPhone
+      sendPushcutNotification('approved', { name: fullName, email }).catch((e) =>
+        console.warn('Pushcut approved notification error:', e)
+      );
 
       // 2. If payment method was used, record payment method details (last4, brand, exp)
       if (paymentIntent.payment_method) {
