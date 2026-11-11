@@ -37,7 +37,7 @@ import {
   useElements,
   useStripe,
 } from '@stripe/react-stripe-js';
-import { recordPaymentInSupabase } from '../../lib/supabase';
+import { recordPaymentInSupabase, upsertCustomer } from '../../lib/supabase';
 import MetaPixelTracker from '../components/MetaPixelTracker';
 
 // Pre-load Stripe promise if key is present
@@ -827,13 +827,19 @@ export default function PaymentPage() {
   // Success Confirmation Modal
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
-  // Auto-fill fullName and email from previous funnel steps if available
+  // Auto-fill fullName and email from previous funnel steps and save lead to Supabase
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedName = sessionStorage.getItem('spotify_listener_name');
       if (savedName) setFullName(savedName);
       const savedEmail = sessionStorage.getItem('spotify_listener_email');
-      if (savedEmail) setEmail(savedEmail);
+      if (savedEmail) {
+        setEmail(savedEmail);
+        upsertCustomer({
+          email: savedEmail,
+          full_name: savedName || undefined,
+        }).catch((err) => console.warn('Supabase lead auto-save notice:', err));
+      }
     }
   }, []);
 
@@ -921,7 +927,10 @@ export default function PaymentPage() {
         }
       } catch (err) {
         console.warn('Could not initialize Stripe intent, falling back to test mode:', err);
-        // Notify Pushcut Venda Pendente once when on /payment
+      } finally {
+        setIsInitializingPayment(false);
+
+        // Notify Pushcut Venda Pendente strictly once per user session
         try {
           const hasNotifiedPending = sessionStorage.getItem('pushcut_pending_notified');
           if (!hasNotifiedPending) {
@@ -937,13 +946,11 @@ export default function PaymentPage() {
             }).catch(() => {});
           }
         } catch {}
-      } finally {
-        setIsInitializingPayment(false);
       }
     }
 
     initPayment();
-  }, [email, fullName]);
+  }, []);
 
   const handlePaymentSuccess = () => {
     setPaymentSuccess(true);

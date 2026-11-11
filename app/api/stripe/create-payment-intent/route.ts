@@ -42,18 +42,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. Save customer lead in Supabase & notify Pushcut
+    // 2. Save customer lead in Supabase
     if (email) {
       await upsertCustomer({
         email,
         full_name: name,
         stripe_customer_id: customer.id,
       });
-
-      // Dispatch Venda Pendente Pushcut notification
-      sendPushcutNotification('pending', { name, email }).catch((e) =>
-        console.warn('Pushcut pending notification error:', e)
-      );
     }
 
     // 3. Create Stripe PaymentIntent associated with Customer

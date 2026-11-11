@@ -134,6 +134,8 @@ export async function recordPaymentInSupabase(payment: PaymentRecord) {
     const { data, error } = await supabase.from('payments').insert([
       {
         customer_id: customerId,
+        email: payment.email,
+        full_name: payment.full_name,
         amount: payment.amount,
         currency: payment.currency,
         stripe_payment_id: payment.stripe_payment_id,
