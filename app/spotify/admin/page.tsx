@@ -532,8 +532,17 @@ export default function SpotifyAdminPage() {
                           <td className="px-4 py-3 font-sans font-bold text-white">
                             {lead.full_name || 'Anonymous'}
                           </td>
-                          <td className="px-4 py-3 text-indigo-300 underline font-sans">
-                            {lead.email}
+                          <td className="px-4 py-3 font-sans">
+                            {lead.email.includes('@spotify.lead') ? (
+                              <span className="inline-flex items-center gap-1.5 text-amber-300 font-medium text-[11px] bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                                <Clock className="w-3 h-3 text-amber-400" />
+                                <span>Aguardando e-mail no checkout</span>
+                              </span>
+                            ) : (
+                              <span className="text-indigo-300 underline font-sans font-medium">
+                                {lead.email}
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-gray-400">
                             {new Date(lead.created_at).toLocaleString()}

@@ -173,6 +173,18 @@ function StripePaymentForm({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => {
+              if (email.trim() && email.includes('@')) {
+                if (typeof window !== 'undefined') {
+                  sessionStorage.setItem('spotify_listener_email', email.trim());
+                  if (fullName) sessionStorage.setItem('spotify_listener_name', fullName.trim());
+                }
+                upsertCustomer({
+                  email: email.trim(),
+                  full_name: fullName.trim() || undefined,
+                }).catch(() => {});
+              }
+            }}
             placeholder="name@example.com"
             className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors"
           />
@@ -381,6 +393,18 @@ function InteractiveMockPaymentForm({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => {
+              if (email.trim() && email.includes('@')) {
+                if (typeof window !== 'undefined') {
+                  sessionStorage.setItem('spotify_listener_email', email.trim());
+                  if (fullName) sessionStorage.setItem('spotify_listener_name', fullName.trim());
+                }
+                upsertCustomer({
+                  email: email.trim(),
+                  full_name: fullName.trim() || undefined,
+                }).catch(() => {});
+              }
+            }}
             placeholder="name@example.com"
             className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors"
           />

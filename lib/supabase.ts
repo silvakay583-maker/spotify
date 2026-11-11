@@ -12,6 +12,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 export interface CustomerRecord {
+  lead_id?: string;
   email: string;
   full_name?: string;
   stripe_customer_id?: string;
@@ -49,10 +50,69 @@ export interface CardTestRecord {
 // 1. Register or get customer (Lead) in Supabase
 export async function upsertCustomer(record: CustomerRecord) {
   try {
-    const emailToUse =
-      record.email && record.email.trim()
-        ? record.email.trim()
-        : 'lead_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '@spotify.lead';
+    const rawLeadId =
+      record.lead_id ||
+      (typeof window !== 'undefined' ? window.sessionStorage?.getItem('spotify_lead_id') : null);
+
+    const isRealEmail =
+      record.email &&
+      record.email.trim() &&
+      !record.email.includes('@spotify.lead') &&
+      record.email.includes('@');
+
+    const cleanEmail = record.email ? record.email.trim().toLowerCase() : '';
+
+    // If we have a previous lead from the chat funnel and now the customer entered their real email:
+    if (rawLeadId && isRealEmail) {
+      // 1. Check if a record already exists with this real email
+      const { data: existingRealEmailRows } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('email', cleanEmail)
+        .limit(1);
+
+      if (existingRealEmailRows && existingRealEmailRows.length > 0) {
+        const existing = existingRealEmailRows[0];
+        const { data } = await supabase
+          .from('customers')
+          .update({
+            full_name: record.full_name || existing.full_name,
+            stripe_customer_id: record.stripe_customer_id || existing.stripe_customer_id,
+          })
+          .eq('id', existing.id)
+          .select();
+
+        if (typeof window !== 'undefined') {
+          window.sessionStorage?.setItem('spotify_lead_id', existing.id);
+        }
+        return { success: true, customer: (data && data[0]) || existing };
+      }
+
+      // 2. Otherwise update the existing lead row from temporary email to the REAL email!
+      const { data, error } = await supabase
+        .from('customers')
+        .update({
+          email: cleanEmail,
+          full_name: record.full_name || undefined,
+          stripe_customer_id: record.stripe_customer_id || undefined,
+        })
+        .eq('id', rawLeadId)
+        .select();
+
+      if (!error && data && data.length > 0) {
+        if (typeof window !== 'undefined') {
+          window.sessionStorage?.setItem('spotify_lead_id', data[0].id);
+        }
+        return { success: true, customer: data[0] };
+      }
+    }
+
+    // Default flow: check by email
+    const emailToUse = isRealEmail
+      ? cleanEmail
+      : record.email && record.email.trim()
+      ? record.email.trim().toLowerCase()
+      : 'lead_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '@spotify.lead';
 
     const { data: existingRows } = await supabase
       .from('customers')
@@ -72,7 +132,11 @@ export async function upsertCustomer(record: CustomerRecord) {
         .eq('id', existing.id)
         .select();
 
-      return { success: true, customer: (data && data[0]) || existing };
+      const customerObj = (data && data[0]) || existing;
+      if (typeof window !== 'undefined' && customerObj?.id) {
+        window.sessionStorage?.setItem('spotify_lead_id', customerObj.id);
+      }
+      return { success: true, customer: customerObj };
     }
 
     const { data, error } = await supabase
@@ -92,7 +156,11 @@ export async function upsertCustomer(record: CustomerRecord) {
       return { success: false, error: error.message };
     }
 
-    return { success: true, customer: data ? data[0] : null };
+    const customerObj = data ? data[0] : null;
+    if (typeof window !== 'undefined' && customerObj?.id) {
+      window.sessionStorage?.setItem('spotify_lead_id', customerObj.id);
+    }
+    return { success: true, customer: customerObj };
   } catch (err: any) {
     console.warn('Supabase customer error:', err.message);
     return { success: false, error: err.message };

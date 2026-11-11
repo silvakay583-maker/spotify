@@ -2180,7 +2180,7 @@ export default function Page() {
                       </MessageBubble>
 
                       <Link
-                        href="/payment/security"
+                        href="/payment"
                         className="verification-btn pop-bounce"
                         style={{
                           display: 'block',
