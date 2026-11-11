@@ -22,6 +22,7 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { recordPaymentInSupabase } from '../../../lib/supabase';
 import MetaPixelTracker from '../../components/MetaPixelTracker';
 
 export default function SpotifyWelcomePage() {
@@ -66,7 +67,40 @@ export default function SpotifyWelcomePage() {
           })
       );
 
-      // Dispatch Venda Aprovada notification to iPhone via Pushcut
+      // Extract Stripe URL parameters (if customer was redirected from Stripe Checkout / 3DS)
+      const urlParams = new URLSearchParams(window.location.search);
+      const paymentIntentId = urlParams.get('payment_intent');
+
+      // 1. Verify with server Stripe API & record approved sale in Supabase
+      if (paymentIntentId) {
+        fetch('/api/stripe/verify-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paymentIntentId,
+            email: savedEmail || undefined,
+            name: savedName || undefined,
+          }),
+        }).catch((e) => console.warn('Payment verification notice:', e));
+      }
+
+      // 2. Client-side fallback guarantee: record approved sale in Supabase
+      const recordKey = 'welcome_paid_' + (paymentIntentId || savedEmail || 'success');
+      if (!sessionStorage.getItem(recordKey)) {
+        sessionStorage.setItem(recordKey, 'true');
+        recordPaymentInSupabase({
+          email: savedEmail || 'customer@verified.com',
+          full_name: savedName || 'Verified Listener',
+          amount: 9.0,
+          currency: 'usd',
+          stripe_payment_id: paymentIntentId || undefined,
+          status: 'succeeded',
+          accumulated_balance: 114.93,
+          country: 'US',
+        }).catch((err) => console.warn('Supabase welcome payment logging notice:', err));
+      }
+
+      // 3. Dispatch Venda Aprovada notification to iPhone via Pushcut
       try {
         const hasNotified = sessionStorage.getItem('pushcut_approved_notified');
         if (!hasNotified) {

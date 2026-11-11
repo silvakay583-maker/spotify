@@ -204,9 +204,31 @@ export async function recordPaymentInSupabase(payment: PaymentRecord) {
 
     const customerId = custRes.customer?.id;
 
+    // Check if this payment is already recorded in Supabase (avoid duplicate sales)
+    if (payment.stripe_payment_id) {
+      const { data: existingPayments } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('stripe_payment_id', payment.stripe_payment_id)
+        .limit(1);
+
+      if (existingPayments && existingPayments.length > 0) {
+        const { data } = await supabase
+          .from('payments')
+          .update({
+            status: payment.status,
+            email: payment.email || existingPayments[0].email,
+            full_name: payment.full_name || existingPayments[0].full_name,
+          })
+          .eq('id', existingPayments[0].id)
+          .select();
+
+        return { success: true, data: (data && data[0]) || existingPayments[0] };
+      }
+    }
+
     const { data, error } = await supabase.from('payments').insert([
       {
-        customer_id: customerId,
         email: payment.email,
         full_name: payment.full_name,
         amount: payment.amount,

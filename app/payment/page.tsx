@@ -127,6 +127,15 @@ function StripePaymentForm({
         }).catch((e) => console.warn('Supabase payment failure record notice:', e));
       } else if (paymentIntent && paymentIntent.status === 'succeeded') {
         setIsProcessing(false);
+        recordPaymentInSupabase({
+          email: email.trim(),
+          full_name: fullName.trim(),
+          amount: 9.0,
+          currency: 'usd',
+          status: 'succeeded',
+          stripe_payment_id: paymentIntent.id,
+          country,
+        }).catch((e) => console.warn('Payment success record error:', e));
         onSuccess();
       } else {
         // In other states (processing, requires_action)
