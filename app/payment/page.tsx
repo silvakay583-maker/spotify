@@ -974,15 +974,6 @@ export default function PaymentPage() {
       country,
     }).catch((err) => console.warn('Supabase client registration notice:', err));
 
-    // Notify iPhone via Pushcut (Venda Aprovada)
-    try {
-      fetch('/api/pushcut', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'approved', name: fullName, email }),
-      }).catch(() => {});
-    } catch {}
-
     // Automatically redirect to /spotify/welcome after 2.5s
     setTimeout(() => {
       router.push('/spotify/welcome');

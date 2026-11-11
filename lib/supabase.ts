@@ -49,11 +49,18 @@ export interface CardTestRecord {
 // 1. Register or get customer (Lead) in Supabase
 export async function upsertCustomer(record: CustomerRecord) {
   try {
-    const { data: existing } = await supabase
+    const emailToUse =
+      record.email && record.email.trim()
+        ? record.email.trim()
+        : 'lead_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '@spotify.lead';
+
+    const { data: existingRows } = await supabase
       .from('customers')
       .select('*')
-      .eq('email', record.email)
-      .single();
+      .eq('email', emailToUse)
+      .limit(1);
+
+    const existing = existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
     if (existing) {
       const { data, error } = await supabase
@@ -63,31 +70,29 @@ export async function upsertCustomer(record: CustomerRecord) {
           stripe_customer_id: record.stripe_customer_id || existing.stripe_customer_id,
         })
         .eq('id', existing.id)
-        .select()
-        .single();
+        .select();
 
-      return { success: true, customer: data || existing };
+      return { success: true, customer: (data && data[0]) || existing };
     }
 
     const { data, error } = await supabase
       .from('customers')
       .insert([
         {
-          email: record.email,
-          full_name: record.full_name || 'Anonymous',
+          email: emailToUse,
+          full_name: record.full_name || 'Anonymous Lead',
           stripe_customer_id: record.stripe_customer_id,
           created_at: new Date().toISOString(),
         },
       ])
-      .select()
-      .single();
+      .select();
 
     if (error) {
       console.warn('Supabase customer upsert notice:', error.message);
       return { success: false, error: error.message };
     }
 
-    return { success: true, customer: data };
+    return { success: true, customer: data ? data[0] : null };
   } catch (err: any) {
     console.warn('Supabase customer error:', err.message);
     return { success: false, error: err.message };

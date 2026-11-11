@@ -6,6 +6,7 @@ import { Check, CreditCard, Info, Pause, Play, Send, User, Volume2 } from 'lucid
 import Image from 'next/image';
 import Link from 'next/link';
 import { memo, useEffect, useRef, useState } from 'react';
+import { upsertCustomer } from '../../../lib/supabase';
 import MetaPixelTracker from '../../components/MetaPixelTracker';
 
 type Song = {
@@ -1326,6 +1327,12 @@ export default function Page() {
     if (typeof window !== 'undefined') {
       window.sessionStorage?.setItem('spotify_listener_name', trimmed);
     }
+
+    // Instantly save lead in Supabase as soon as they enter their name in the chat funnel
+    upsertCustomer({
+      email: 'lead_' + Date.now() + '_' + Math.floor(Math.random() * 1000) + '@spotify.lead',
+      full_name: trimmed,
+    }).catch((err) => console.warn('Chat lead save error:', err));
 
     setFinalPhase(29); // Phase 29: Typing indicator (2s)
 

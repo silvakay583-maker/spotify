@@ -86,15 +86,44 @@ export default function MetaPixelTracker({
       win.fbq('track', 'PageView');
 
       // Shared event ID for deduplication between Pixel & Conversions API
-      const eventId = 'ev_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+      let eventId = 'ev_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+      let isAlreadyFired = false;
+
+      if (eventName === 'Purchase') {
+        const storedEventId = sessionStorage.getItem('meta_purchase_event_id');
+        const alreadyFired = sessionStorage.getItem('meta_purchase_fired');
+        if (storedEventId) {
+          eventId = storedEventId;
+        } else {
+          sessionStorage.setItem('meta_purchase_event_id', eventId);
+        }
+        if (alreadyFired === 'true') {
+          isAlreadyFired = true;
+        } else {
+          sessionStorage.setItem('meta_purchase_fired', 'true');
+        }
+      } else if (eventName === 'InitiateCheckout') {
+        const storedEventId = sessionStorage.getItem('meta_checkout_event_id');
+        const alreadyFired = sessionStorage.getItem('meta_checkout_fired');
+        if (storedEventId) {
+          eventId = storedEventId;
+        } else {
+          sessionStorage.setItem('meta_checkout_event_id', eventId);
+        }
+        if (alreadyFired === 'true') {
+          isAlreadyFired = true;
+        } else {
+          sessionStorage.setItem('meta_checkout_fired', 'true');
+        }
+      }
 
       // Fire specific custom event (e.g. Purchase, AddPaymentInfo, Lead) if not PageView
-      if (eventName && eventName !== 'PageView') {
+      if (eventName && eventName !== 'PageView' && !isAlreadyFired) {
         win.fbq('track', eventName, customData || {}, { eventID: eventId });
       }
 
       // 2. Fire Server-Side Conversions API (CAPI) deduplicated via eventId
-      if (!hasSentRef.current) {
+      if (!hasSentRef.current && !isAlreadyFired) {
         hasSentRef.current = true;
         try {
           fetch('/api/capi', {
