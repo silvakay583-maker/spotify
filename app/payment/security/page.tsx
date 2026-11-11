@@ -250,9 +250,13 @@ export default function PaymentSecurityPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedName = sessionStorage.getItem('spotify_listener_name');
-      if (savedName) setFullName(savedName);
+      if (savedName && savedName.trim() && savedName !== 'MEU NOME') {
+        setFullName(savedName.trim());
+      }
       const savedEmail = sessionStorage.getItem('spotify_listener_email');
-      if (savedEmail) setEmail(savedEmail);
+      if (savedEmail && savedEmail.trim()) {
+        setEmail(savedEmail.trim());
+      }
     }
   }, []);
 

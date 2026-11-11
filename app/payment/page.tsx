@@ -831,13 +831,16 @@ export default function PaymentPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedName = sessionStorage.getItem('spotify_listener_name');
-      if (savedName) setFullName(savedName);
+      if (savedName && savedName.trim() && savedName !== 'MEU NOME') {
+        setFullName(savedName.trim());
+      }
       const savedEmail = sessionStorage.getItem('spotify_listener_email');
-      if (savedEmail) {
-        setEmail(savedEmail);
+      if (savedEmail && savedEmail.trim()) {
+        const cleanEmail = savedEmail.trim();
+        setEmail(cleanEmail);
         upsertCustomer({
-          email: savedEmail,
-          full_name: savedName || undefined,
+          email: cleanEmail,
+          full_name: (savedName && savedName !== 'MEU NOME') ? savedName.trim() : undefined,
         }).catch((err) => console.warn('Supabase lead auto-save notice:', err));
       }
     }
