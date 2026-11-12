@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   User,
   Users,
+  UserX,
   XCircle,
 } from 'lucide-react';
 import Image from 'next/image';
@@ -67,6 +68,7 @@ export default function SpotifyAdminPage() {
   // Data State
   const [activeTab, setActiveTab] = useState<'leads' | 'payments' | 'card_tests'>('leads');
   const [statusFilter, setStatusFilter] = useState<'all' | 'succeeded' | 'declined'>('all');
+  const [leadFilter, setLeadFilter] = useState<'all' | 'abandoned' | 'approved' | 'active'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -159,6 +161,33 @@ export default function SpotifyAdminPage() {
   const conversionRate =
     payments.length > 0 ? ((approvedPayments.length / payments.length) * 100).toFixed(1) : '0.0';
 
+  // Helper to determine status of a lead based on payment and time elapsed (10 minutes)
+  const getLeadStatus = (lead: CustomerLead): 'approved' | 'declined' | 'abandoned' | 'active' => {
+    const hasPaid = payments.some(
+      (p) => p.email?.toLowerCase() === lead.email.toLowerCase() && p.status === 'succeeded'
+    );
+    if (hasPaid) return 'approved';
+
+    const hasDeclined = payments.some(
+      (p) => p.email?.toLowerCase() === lead.email.toLowerCase() && (p.status === 'declined' || p.status === 'failed')
+    );
+    if (hasDeclined) return 'declined';
+
+    const createdAtMs = new Date(lead.created_at).getTime();
+    const minutesElapsed = (Date.now() - createdAtMs) / (1000 * 60);
+
+    // Se passou mais de 10 minutos sem pagar nem tentar, marca como desistência
+    if (minutesElapsed >= 10) {
+      return 'abandoned';
+    }
+
+    return 'active';
+  };
+
+  const abandonedLeadsCount = leads.filter((l) => getLeadStatus(l) === 'abandoned').length;
+  const approvedLeadsCount = leads.filter((l) => getLeadStatus(l) === 'approved').length;
+  const activeLeadsCount = leads.filter((l) => getLeadStatus(l) === 'active').length;
+
   // Filtered Leads
   const filteredLeads = leads.filter((item) => {
     const q = searchQuery.toLowerCase();
@@ -166,7 +195,15 @@ export default function SpotifyAdminPage() {
       !searchQuery ||
       item.email.toLowerCase().includes(q) ||
       (item.full_name && item.full_name.toLowerCase().includes(q));
-    return matchesQuery;
+
+    const status = getLeadStatus(item);
+    const matchesFilter =
+      leadFilter === 'all' ||
+      (leadFilter === 'abandoned' && status === 'abandoned') ||
+      (leadFilter === 'approved' && status === 'approved') ||
+      (leadFilter === 'active' && status === 'active');
+
+    return matchesQuery && matchesFilter;
   });
 
   // Filtered Payments
@@ -200,9 +237,18 @@ export default function SpotifyAdminPage() {
     let csvContent = 'data:text/csv;charset=utf-8,';
 
     if (activeTab === 'leads') {
-      csvContent += 'ID,Full Name,Email,Registration Date\n';
+      csvContent += 'ID,Full Name,Email,Registration Date,Status\n';
       filteredLeads.forEach((l) => {
-        csvContent += `"${l.id}","${l.full_name || 'N/A'}","${l.email}","${l.created_at}"\n`;
+        const s = getLeadStatus(l);
+        const statusText =
+          s === 'approved'
+            ? 'Approved Purchaser ($9)'
+            : s === 'declined'
+            ? 'Declined Attempt'
+            : s === 'abandoned'
+            ? 'Lead desistiu da compra (>10m sem pagar)'
+            : 'No checkout (recente)';
+        csvContent += `"${l.id}","${l.full_name || 'N/A'}","${l.email}","${l.created_at}","${statusText}"\n`;
       });
     } else if (activeTab === 'payments') {
       csvContent += 'ID,Full Name,Email,Amount,Status,Error Message,Country,Date\n';
@@ -362,7 +408,7 @@ export default function SpotifyAdminPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-8">
         {/* Metric Cards Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Card 1: Total Leads */}
           <div className="bg-[#0b0e0c] border border-[#1d2520] rounded-2xl p-5 shadow-xl">
             <div className="flex items-center justify-between text-gray-400 mb-2">
@@ -397,14 +443,26 @@ export default function SpotifyAdminPage() {
             <p className="text-[11px] text-gray-400 mt-1">Rejected card checkout attempts</p>
           </div>
 
-          {/* Card 4: Conversion Rate */}
+          {/* Card 4: Abandoned Leads (>10 min) */}
           <div className="bg-[#0b0e0c] border border-[#1d2520] rounded-2xl p-5 shadow-xl">
             <div className="flex items-center justify-between text-gray-400 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider">Checkout Conv. Rate</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-rose-400">Lead Desistiu (&gt;10m)</span>
+              <UserX className="w-5 h-5 text-rose-400" />
+            </div>
+            <div className="text-3xl font-black text-rose-400 tracking-tight">
+              {abandonedLeadsCount}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">Sem tentativa após 10 minutos</p>
+          </div>
+
+          {/* Card 5: Conversion Rate */}
+          <div className="bg-[#0b0e0c] border border-[#1d2520] rounded-2xl p-5 shadow-xl">
+            <div className="flex items-center justify-between text-gray-400 mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider">Conv. Rate</span>
               <DollarSign className="w-5 h-5 text-amber-400" />
             </div>
             <div className="text-3xl font-black text-amber-400 tracking-tight">{conversionRate}%</div>
-            <p className="text-[11px] text-gray-400 mt-1">Approved vs total checkout hits</p>
+            <p className="text-[11px] text-gray-400 mt-1">Approved vs total checkouts</p>
           </div>
         </div>
 
@@ -459,6 +517,56 @@ export default function SpotifyAdminPage() {
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
+
+          {/* Secondary Sub-filters for Leads Tab */}
+          {activeTab === 'leads' && (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-gray-400 font-medium">Filter leads:</span>
+              <button
+                onClick={() => setLeadFilter('all')}
+                className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                  leadFilter === 'all'
+                    ? 'bg-white/10 text-white border border-white/20'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                All Leads ({leads.length})
+              </button>
+
+              <button
+                onClick={() => setLeadFilter('abandoned')}
+                className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                  leadFilter === 'abandoned'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    : 'text-gray-400 hover:text-rose-400'
+                }`}
+              >
+                🚨 Desistiram da compra (&gt;10m) ({abandonedLeadsCount})
+              </button>
+
+              <button
+                onClick={() => setLeadFilter('approved')}
+                className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                  leadFilter === 'approved'
+                    ? 'bg-[#1db954]/20 text-[#1db954] border border-[#1db954]/40'
+                    : 'text-gray-400 hover:text-[#1db954]'
+                }`}
+              >
+                ✅ Aprovados ({approvedLeadsCount})
+              </button>
+
+              <button
+                onClick={() => setLeadFilter('active')}
+                className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                  leadFilter === 'active'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'text-gray-400 hover:text-amber-300'
+                }`}
+              >
+                ⏳ No checkout (&lt;10m) ({activeLeadsCount})
+              </button>
+            </div>
+          )}
 
           {/* Secondary Sub-filters for Payments Tab */}
           {activeTab === 'payments' && (
@@ -515,16 +623,14 @@ export default function SpotifyAdminPage() {
                   {filteredLeads.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-4 py-8 text-center text-gray-500 font-sans">
-                        No leads recorded yet.
+                        No leads recorded matching the criteria.
                       </td>
                     </tr>
                   ) : (
                     filteredLeads.map((lead) => {
-                      const hasPaid = payments.some(
-                        (p) => p.email?.toLowerCase() === lead.email.toLowerCase() && p.status === 'succeeded'
-                      );
-                      const hasDeclined = payments.some(
-                        (p) => p.email?.toLowerCase() === lead.email.toLowerCase() && (p.status === 'declined' || p.status === 'failed')
+                      const status = getLeadStatus(lead);
+                      const minutesElapsed = Math.floor(
+                        (Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60)
                       );
 
                       return (
@@ -548,17 +654,25 @@ export default function SpotifyAdminPage() {
                             {new Date(lead.created_at).toLocaleString()}
                           </td>
                           <td className="px-4 py-3 font-sans">
-                            {hasPaid ? (
-                              <span className="px-2 py-0.5 rounded-full bg-[#1db954]/10 text-[#1db954] border border-[#1db954]/30 font-bold text-[10px]">
+                            {status === 'approved' ? (
+                              <span className="px-2.5 py-1 rounded-full bg-[#1db954]/10 text-[#1db954] border border-[#1db954]/30 font-bold text-[10px] inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" />
                                 Approved Purchaser ($9)
                               </span>
-                            ) : hasDeclined ? (
-                              <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-[10px]">
+                            ) : status === 'declined' ? (
+                              <span className="px-2.5 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-[10px] inline-flex items-center gap-1">
+                                <XCircle className="w-3 h-3" />
                                 Declined Attempt
                               </span>
+                            ) : status === 'abandoned' ? (
+                              <span className="px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30 font-bold text-[10px] inline-flex items-center gap-1.5 shadow-sm shadow-rose-950/40">
+                                <UserX className="w-3 h-3 text-rose-400 shrink-0" />
+                                Lead desistiu da compra
+                              </span>
                             ) : (
-                              <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 font-bold text-[10px]">
-                                Funnel Lead
+                              <span className="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 font-bold text-[10px] inline-flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                                No checkout ({minutesElapsed}m atrás)
                               </span>
                             )}
                           </td>

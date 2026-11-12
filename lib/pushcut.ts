@@ -4,7 +4,7 @@ export const PUSHCUT_APPROVED_URL =
   'https://api.pushcut.io/KFYOIy_Ie4vPlowVi1jh2/notifications/Venda%20Aprovada%20-%20$9,00';
 
 export const PUSHCUT_PENDING_URL =
-  'https://api.pushcut.io/KFYOIy_Ie4vPlowVi1jh2/notifications/Venda%20Pendente%20-%20$9,00%20%F0%9F%91%80';
+  'https://api.pushcut.io/KFYOIy_Ie4vPlowVi1jh2/notifications/Venda%20Pendente';
 
 export async function sendPushcutNotification(
   type: 'approved' | 'pending',
