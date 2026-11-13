@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 
 const META_PIXEL_ID = '1130433272724731';
-const TIKTOK_PIXEL_ID = 'DBRAD8BC77U7CBT5UTL0';
+const TIKTOK_PIXEL_IDS = ['DBRAD8BC77U7CBT5UTL0', 'DBRLF1RC77U859QPQE0G'];
 
 export interface PixelEventCustomData {
   content_id?: string;
@@ -28,7 +28,7 @@ interface MetaPixelTrackerProps {
 }
 
 /**
- * Ensures both Meta Pixel and TikTok Pixel (DBRAD8BC77U7CBT5UTL0) are initialized on window.
+ * Ensures Meta Pixel and both TikTok Pixels (DBRAD8BC77U7CBT5UTL0 & DBRLF1RC77U859QPQE0G) are initialized on window.
  */
 export function ensurePixelsInitialized(resolvedEmail?: string, resolvedName?: string) {
   if (typeof window === 'undefined') return;
@@ -60,7 +60,7 @@ export function ensurePixelsInitialized(resolvedEmail?: string, resolvedName?: s
     win.fbq('init', META_PIXEL_ID, Object.keys(initData).length > 0 ? initData : undefined);
   }
 
-  // 2. Initialize TikTok Pixel (DBRAD8BC77U7CBT5UTL0) if not already present
+  // 2. Initialize TikTok Pixels (DBRAD8BC77U7CBT5UTL0 & DBRLF1RC77U859QPQE0G) if not already present
   if (!win.ttq) {
     (function (w: any, d: any, t: string) {
       w.TiktokAnalyticsObject = t;
@@ -119,9 +119,20 @@ export function ensurePixelsInitialized(resolvedEmail?: string, resolvedName?: s
         }
       };
 
-      ttq.load(TIKTOK_PIXEL_ID);
+      TIKTOK_PIXEL_IDS.forEach((pixelId) => {
+        ttq.load(pixelId);
+      });
       ttq.page();
     })(window, document, 'ttq');
+  } else if (win.ttq && win.ttq.load) {
+    // Ensure both pixels are registered even if window.ttq was initialized earlier
+    TIKTOK_PIXEL_IDS.forEach((pixelId) => {
+      if (!win.ttq._i || !win.ttq._i[pixelId]) {
+        try {
+          win.ttq.load(pixelId);
+        } catch {}
+      }
+    });
   }
 
   // Advanced Matching on TikTok Pixel when user email is available

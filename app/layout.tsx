@@ -36,6 +36,7 @@ export default function RootLayout({
               ;n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
 
               ttq.load('DBRAD8BC77U7CBT5UTL0');
+              ttq.load('DBRLF1RC77U859QPQE0G');
               ttq.page();
             }(window, document, 'ttq');
           `}
