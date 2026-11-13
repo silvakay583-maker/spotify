@@ -247,17 +247,29 @@ export default function SpotifyLandingPage() {
           </div>
 
           {/* Primary Headline — Clean Spotify Typography */}
-          <h1 className="text-2xl sm:text-4xl lg:text-[42px] font-bold tracking-[-0.025em] leading-[1.22] max-w-3xl mx-auto mb-4 text-white">
+          <h1 className="text-2xl sm:text-4xl lg:text-[42px] font-bold tracking-[-0.025em] leading-[1.22] max-w-3xl mx-auto mb-8 sm:mb-10 text-white">
             Earn up to <span className="text-[#1db954]">$350 per day</span> working with Spotify evaluating music as a partner for major record labels.
           </h1>
 
-          {/* Supporting Subheading */}
-          <p className="text-sm sm:text-base text-[#a7a7a7] font-normal max-w-2xl mx-auto mb-12 leading-relaxed">
-            Get paid in USD listening to music releases from global superstars like Taylor Swift, Adele, and The Weeknd as well as emerging independent artists before songs hit global playlists.
-          </p>
+          {/* Main Hero Visual Banner Inside Clean Dark Spotify Frame — Placed Above Why Become a Spotify Reviewer */}
+          <Link href="/spotify/rewards" className="block cursor-pointer group mb-12 sm:mb-14">
+            <div className="relative mx-auto max-w-4xl rounded-2xl p-1.5 bg-[#181818] border border-[#262626] hover:border-[#1db954]/50 shadow-2xl transition-all duration-300">
+              <div className="relative w-full rounded-xl overflow-hidden bg-[#121212]">
+                <Image
+                  src={HERO_BANNER_URL}
+                  alt="Spotify Rewards Banner - Evaluating Music"
+                  width={1200}
+                  height={550}
+                  className="w-full h-auto object-cover block"
+                  priority
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            </div>
+          </Link>
 
-          {/* Why Become a Spotify Reviewer? — 4 Minimalist Cards (Exact Reference Layout) */}
-          <div className="mt-4 mb-14">
+          {/* Why Become a Spotify Reviewer? — 4 Minimalist Cards */}
+          <div className="mt-2">
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-8">
               Why Become a Spotify Reviewer?
             </h2>
@@ -282,23 +294,6 @@ export default function SpotifyLandingPage() {
               })}
             </div>
           </div>
-
-          {/* Main Hero Visual Banner Inside Clean Dark Spotify Frame */}
-          <Link href="/spotify/rewards" className="block cursor-pointer group">
-            <div className="relative mx-auto max-w-4xl rounded-2xl p-1.5 bg-[#181818] border border-[#262626] hover:border-[#1db954]/50 shadow-2xl transition-all duration-300">
-              <div className="relative w-full rounded-xl overflow-hidden bg-[#121212]">
-                <Image
-                  src={HERO_BANNER_URL}
-                  alt="Spotify Rewards Banner - Evaluating Music"
-                  width={1200}
-                  height={550}
-                  className="w-full h-auto object-cover block"
-                  priority
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-            </div>
-          </Link>
         </div>
       </section>
 

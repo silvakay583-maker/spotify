@@ -1092,6 +1092,43 @@ function PaymentPageContent() {
     }
   }, []);
 
+  // Automatically fire Pushcut "Venda Pendente" once the user enters a valid email address
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const cleanEmail = email.trim().toLowerCase();
+    // Validate that email has user@domain.tld format (and is not a synthetic @spotify.lead placeholder)
+    const isValidEmail =
+      /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(cleanEmail) && !cleanEmail.endsWith('@spotify.lead');
+
+    if (!isValidEmail) return;
+
+    const pendingStorageKey = `pushcut_pending_${activeOfferId}_${cleanEmail}`;
+    if (sessionStorage.getItem(pendingStorageKey) === 'true') return;
+
+    const timer = setTimeout(() => {
+      if (sessionStorage.getItem(pendingStorageKey) === 'true') return;
+      sessionStorage.setItem(pendingStorageKey, 'true');
+
+      const cleanName =
+        fullName.trim() ||
+        sessionStorage.getItem('spotify_listener_name') ||
+        localStorage.getItem('spotify_listener_name') ||
+        'Cliente';
+
+      fetch('/api/pushcut', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'pending',
+          name: cleanName,
+          email: cleanEmail,
+        }),
+      }).catch(() => {});
+    }, 650);
+
+    return () => clearTimeout(timer);
+  }, [email, fullName, activeOfferId]);
+
   // Load balance from backend if front-end checkout
   useEffect(() => {
     if (isUpsellCheckout) return;
@@ -1189,6 +1226,21 @@ function PaymentPageContent() {
         const nowIso = new Date().toISOString();
         sessionStorage.setItem('spotify_payment_date', nowIso);
         localStorage.setItem('spotify_payment_date', nowIso);
+      }
+
+      // Dispatch Pushcut "Venda Aprovada" notification
+      const approvedStorageKey = `pushcut_approved_${activeOfferId}_${finalEmail.toLowerCase()}`;
+      if (sessionStorage.getItem(approvedStorageKey) !== 'true') {
+        sessionStorage.setItem(approvedStorageKey, 'true');
+        fetch('/api/pushcut', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'approved',
+            name: finalName,
+            email: finalEmail,
+          }),
+        }).catch(() => {});
       }
     }
 
