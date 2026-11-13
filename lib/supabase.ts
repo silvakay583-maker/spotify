@@ -199,8 +199,19 @@ const recentPaymentLocks = new Map<string, number>();
 // 3. Register payment attempt & lead info in Supabase
 export async function recordPaymentInSupabase(payment: PaymentRecord) {
   try {
-    const cleanEmail = (payment.email || 'customer@verified.com').trim().toLowerCase();
+    const cleanEmail = (payment.email || '').trim().toLowerCase();
     const cleanName = (payment.full_name || 'Verified Listener').trim();
+
+    // Never record synthetic/placeholder ghost sales without a real customer email
+    if (
+      !cleanEmail ||
+      !cleanEmail.includes('@') ||
+      cleanEmail === 'customer@verified.com' ||
+      cleanEmail === 'listener@spotifyrewards.com' ||
+      cleanEmail.endsWith('@spotify.lead')
+    ) {
+      return { success: false, ignored: true };
+    }
 
     if (payment.status === 'succeeded') {
       const lockKey = `${payment.stripe_payment_id || cleanEmail}_${Number(payment.amount || 9).toFixed(2)}`;

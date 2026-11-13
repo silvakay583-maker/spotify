@@ -99,55 +99,21 @@ export default function SpotifyWelcomePage() {
           })
       );
 
-      // Extract Stripe URL parameters (if customer was redirected from Stripe Checkout / 3DS)
+      // Only verify with server Stripe API if a real Stripe payment_intent is in the URL AND a real user email exists
       const urlParams = new URLSearchParams(window.location.search);
       const paymentIntentId = urlParams.get('payment_intent');
 
-      // 1. Verify with server Stripe API & record approved sale in Supabase
-      if (paymentIntentId) {
+      if (paymentIntentId && savedEmail && savedEmail.includes('@') && savedEmail !== 'customer@verified.com') {
         fetch('/api/stripe/verify-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             paymentIntentId,
-            email: savedEmail || undefined,
+            email: savedEmail,
             name: savedName || undefined,
           }),
         }).catch((e) => console.warn('Payment verification notice:', e));
       }
-
-      // 2. Client-side fallback guarantee: record approved sale in Supabase
-      const recordKey = 'welcome_paid_' + (paymentIntentId || savedEmail || 'success');
-      if (!sessionStorage.getItem(recordKey)) {
-        sessionStorage.setItem(recordKey, 'true');
-        recordPaymentInSupabase({
-          email: savedEmail || 'customer@verified.com',
-          full_name: savedName || 'Verified Listener',
-          amount: 9.0,
-          currency: 'usd',
-          stripe_payment_id: paymentIntentId || undefined,
-          status: 'succeeded',
-          accumulated_balance: 114.93,
-          country: 'US',
-        }).catch((err) => console.warn('Supabase welcome payment logging notice:', err));
-      }
-
-      // 3. Dispatch Venda Aprovada notification to iPhone via Pushcut
-      try {
-        const hasNotified = sessionStorage.getItem('pushcut_approved_notified');
-        if (!hasNotified) {
-          sessionStorage.setItem('pushcut_approved_notified', 'true');
-          fetch('/api/pushcut', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'approved',
-              name: savedName || 'Verified Listener',
-              email: savedEmail || '',
-            }),
-          }).catch(() => {});
-        }
-      } catch {}
     }
   }, []);
 
@@ -183,19 +149,11 @@ export default function SpotifyWelcomePage() {
 
   return (
     <div className="min-h-screen bg-[#070a08] text-[#e0e0e0] font-sans antialiased selection:bg-[#1db954] selection:text-black relative overflow-hidden">
-      {/* Meta Pixel & CAPI Purchase Tracker for Approved Purchase */}
       <MetaPixelTracker
-        eventName="Purchase"
+        eventName="PageView"
         customData={{
-          content_name: 'Anti-Spam Security Pass',
+          content_name: 'Spotify Welcome Onboarding',
           content_type: 'product',
-          value: 9.00,
-          currency: 'USD',
-          num_items: 1,
-        }}
-        userData={{
-          email: listenerEmail,
-          full_name: listenerName,
         }}
       />
 

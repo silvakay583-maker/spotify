@@ -270,9 +270,20 @@ export default function SpotifyAdminPage() {
         supabase.from('security_card_tests').select('*').order('created_at', { ascending: false }),
       ]);
 
-      if (leadsRes.data) setLeads(leadsRes.data);
+      // Automatically purge any legacy ghost records (customer@verified.com) from Supabase
+      supabase.from('payments').delete().eq('email', 'customer@verified.com').then(() => {});
+      supabase.from('customers').delete().eq('email', 'customer@verified.com').then(() => {});
 
-      // Deduplicate raw payments from Supabase (e.g. if an old webhook created customer@verified.com alongside a real email at the same minute)
+      const isGhostEmail = (e?: string) => {
+        const clean = (e || '').trim().toLowerCase();
+        return !clean || clean === 'customer@verified.com' || clean === 'listener@spotifyrewards.com';
+      };
+
+      if (leadsRes.data) {
+        setLeads(leadsRes.data.filter((l: CustomerLead) => !isGhostEmail(l.email)));
+      }
+
+      // Deduplicate raw payments from Supabase and exclude ghost fallback emails
       if (paymentsRes.data) {
         const rawList: PaymentItem[] = paymentsRes.data;
         const dedupedPayments: PaymentItem[] = [];
@@ -282,17 +293,9 @@ export default function SpotifyAdminPage() {
           const pAmt = Number(p.amount || 9.0);
           const pTime = new Date(p.created_at).getTime();
 
-          // Skip synthetic webhook fallback row if there is a real customer payment within 3 minutes for the same amount
-          if (p.status === 'succeeded' && pEmail === 'customer@verified.com') {
-            const hasRealMatch = rawList.some(
-              (other) =>
-                other.id !== p.id &&
-                other.status === 'succeeded' &&
-                (other.email || '').trim().toLowerCase() !== 'customer@verified.com' &&
-                Math.abs(Number(other.amount || 9.0) - pAmt) < 0.05 &&
-                Math.abs(new Date(other.created_at).getTime() - pTime) < 3 * 60 * 1000
-            );
-            if (hasRealMatch) continue;
+          // Completely skip ghost / fallback emails like customer@verified.com
+          if (isGhostEmail(pEmail)) {
+            continue;
           }
 
           // Skip duplicate succeeded row for same email + same amount within 10 minutes

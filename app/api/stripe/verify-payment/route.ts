@@ -9,13 +9,13 @@ export async function POST(req: NextRequest) {
 
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
-    let finalEmail = email || '';
+    let finalEmail = (email || '').trim();
     let finalName = name || 'Verified Listener';
-    let status = 'succeeded';
+    let status = 'unverified';
     let amount = 9.0;
     let currency = 'usd';
 
-    // If Stripe secret key is available and we have a paymentIntentId, verify directly with Stripe
+    // Verify directly with Stripe when secret key and paymentIntentId are provided
     if (stripeSecretKey && stripeSecretKey.trim() !== '' && !stripeSecretKey.includes('placeholder') && paymentIntentId) {
       try {
         const stripe = new Stripe(stripeSecretKey);
@@ -26,9 +26,9 @@ export async function POST(req: NextRequest) {
         currency = pi.currency;
 
         if (pi.receipt_email) {
-          finalEmail = pi.receipt_email;
+          finalEmail = pi.receipt_email.trim();
         } else if (pi.metadata?.email) {
-          finalEmail = pi.metadata.email;
+          finalEmail = pi.metadata.email.trim();
         }
 
         if (pi.metadata?.full_name) {
@@ -39,14 +39,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (status === 'succeeded') {
-      // 1. Record approved payment in Supabase
+    const cleanLowerEmail = finalEmail.toLowerCase();
+    const isRealEmail =
+      cleanLowerEmail &&
+      cleanLowerEmail.includes('@') &&
+      cleanLowerEmail !== 'customer@verified.com' &&
+      cleanLowerEmail !== 'listener@spotifyrewards.com' &&
+      !cleanLowerEmail.endsWith('@spotify.lead');
+
+    if (status === 'succeeded' && isRealEmail && paymentIntentId) {
+      // 1. Record approved payment in Supabase only for verified Stripe payments with real email
       await recordPaymentInSupabase({
-        email: finalEmail || 'customer@verified.com',
+        email: finalEmail,
         full_name: finalName,
         amount,
         currency,
-        stripe_payment_id: paymentIntentId || undefined,
+        stripe_payment_id: paymentIntentId,
         status: 'succeeded',
         accumulated_balance: 114.93,
       });

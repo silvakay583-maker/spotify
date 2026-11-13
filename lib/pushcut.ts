@@ -35,8 +35,14 @@ export async function sendPushcutNotification(
   const cleanOffer = (details?.offerId || 'default').trim().toLowerCase();
   const cleanPi = (details?.paymentIntentId || '').trim();
 
-  // Ignore generic placeholder email from webhook if no real email was resolved
-  if (type === 'approved' && cleanEmail === 'customer@verified.com') {
+  // Strictly block empty emails or placeholder/fallback emails from ever triggering Pushcut
+  if (
+    !cleanEmail ||
+    !cleanEmail.includes('@') ||
+    cleanEmail === 'customer@verified.com' ||
+    cleanEmail === 'listener@spotifyrewards.com' ||
+    cleanEmail.endsWith('@spotify.lead')
+  ) {
     return;
   }
 
