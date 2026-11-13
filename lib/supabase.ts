@@ -450,11 +450,25 @@ export async function verifyListenerLogin(email: string, password: string, name?
 
       if (typeof window !== 'undefined') {
         localStorage.setItem('spotify_auth_' + cleanEmail, JSON.stringify(user));
+        localStorage.setItem('spotify_password_created_' + cleanEmail, 'true');
         sessionStorage.setItem('spotify_current_user', cleanEmail);
         sessionStorage.setItem('spotify_logged_in', 'true');
         sessionStorage.setItem('spotify_listener_email', cleanEmail);
         if (user.full_name) sessionStorage.setItem('spotify_listener_name', user.full_name);
         if (user.accepted_terms) localStorage.setItem('spotify_terms_accepted_' + cleanEmail, 'true');
+        if (user.is_vip_7day) localStorage.setItem('spotify_vip_7day_' + cleanEmail, 'true');
+        if (typeof user.balance === 'number' && !localStorage.getItem('spotify_account_balance_' + cleanEmail)) {
+          localStorage.setItem('spotify_account_balance_' + cleanEmail, user.balance.toString());
+        }
+        if (typeof user.daily_song_limit === 'number' && user.daily_song_limit > 3) {
+          localStorage.setItem('spotify_daily_limit_' + cleanEmail, user.daily_song_limit.toString());
+        }
+        if (typeof user.current_day === 'number' && user.current_day > 1) {
+          localStorage.setItem('spotify_current_day_' + cleanEmail, user.current_day.toString());
+        }
+        if (user.cooldown_until && !localStorage.getItem('spotify_cooldown_until_' + cleanEmail)) {
+          localStorage.setItem('spotify_cooldown_until_' + cleanEmail, user.cooldown_until);
+        }
       }
 
       return { success: true, user, isNew: false };
@@ -709,6 +723,7 @@ export async function unlockOfferBenefitAfterPayment(email: string, offerId: Off
       const curLimit = parseInt(localStorage.getItem('spotify_daily_limit_' + emailKey) || '3', 10) || 3;
       const newLimit = Math.max(6, curLimit + 3);
       localStorage.setItem('spotify_daily_limit_' + emailKey, newLimit.toString());
+      localStorage.removeItem('spotify_cooldown_until_' + emailKey);
       const curIdx = parseInt(localStorage.getItem('spotify_active_song_index_' + emailKey) || '0', 10) || 0;
       const curCompleted = parseInt(localStorage.getItem('spotify_songs_completed_' + emailKey) || '0', 10) || 0;
       if (curCompleted >= 3 && curIdx < curCompleted) {
@@ -718,6 +733,7 @@ export async function unlockOfferBenefitAfterPayment(email: string, offerId: Off
       const curLimit = parseInt(localStorage.getItem('spotify_daily_limit_' + emailKey) || '3', 10) || 3;
       const newLimit = Math.max(5, curLimit + 2);
       localStorage.setItem('spotify_daily_limit_' + emailKey, newLimit.toString());
+      localStorage.removeItem('spotify_cooldown_until_' + emailKey);
       const curIdx = parseInt(localStorage.getItem('spotify_active_song_index_' + emailKey) || '0', 10) || 0;
       const curCompleted = parseInt(localStorage.getItem('spotify_songs_completed_' + emailKey) || '0', 10) || 0;
       if (curCompleted >= 3 && curIdx < curCompleted) {
@@ -725,8 +741,12 @@ export async function unlockOfferBenefitAfterPayment(email: string, offerId: Off
       }
     } else if (offerId === 'upsell_skip12h_9_65') {
       const curIdx = parseInt(localStorage.getItem('spotify_active_song_index_' + emailKey) || '0', 10) || 0;
+      const curDay = parseInt(localStorage.getItem('spotify_current_day_' + emailKey) || '1', 10) || 1;
       localStorage.setItem('spotify_active_song_index_' + emailKey, (curIdx + 1).toString());
       localStorage.setItem('spotify_songs_completed_' + emailKey, '0');
+      localStorage.setItem('spotify_today_earned_' + emailKey, '0');
+      localStorage.setItem('spotify_current_day_' + emailKey, (curDay + 1).toString());
+      localStorage.removeItem('spotify_cooldown_until_' + emailKey);
     } else if (offerId === 'upsell_antifraud_9_97') {
       const alreadyPaid = localStorage.getItem('spotify_antifraud_paid_' + emailKey) === 'true';
       if (!alreadyPaid) {
@@ -758,6 +778,7 @@ export async function unlockOfferBenefitAfterPayment(email: string, offerId: Off
         .from('listener_accounts')
         .update({
           daily_song_limit: 6,
+          cooldown_until: null,
         })
         .eq('email', emailKey);
     } else if (offerId === 'downsell_booster2_9_12') {
@@ -765,13 +786,20 @@ export async function unlockOfferBenefitAfterPayment(email: string, offerId: Off
         .from('listener_accounts')
         .update({
           daily_song_limit: 5,
+          cooldown_until: null,
         })
         .eq('email', emailKey);
     } else if (offerId === 'upsell_skip12h_9_65') {
+      const nextDay =
+        typeof window !== 'undefined'
+          ? parseInt(localStorage.getItem('spotify_current_day_' + emailKey) || '2', 10) || 2
+          : 2;
       await supabase
         .from('listener_accounts')
         .update({
           songs_completed_today: 0,
+          current_day: nextDay,
+          cooldown_until: null,
         })
         .eq('email', emailKey);
     } else if (offerId === 'upsell_antifraud_9_97') {
@@ -781,6 +809,8 @@ export async function unlockOfferBenefitAfterPayment(email: string, offerId: Off
           .from('listener_accounts')
           .update({
             balance: parseFloat(newBalStr),
+            antifraud_fee_paid: true,
+            withdrawal_stage: 'ready_re_request',
           })
           .eq('email', emailKey);
       }
@@ -814,6 +844,10 @@ CREATE TABLE IF NOT EXISTS public.listener_accounts (
     daily_song_limit INTEGER DEFAULT 3,
     completed_evaluations INTEGER DEFAULT 0,
     cooldown_until TIMESTAMPTZ,
+    withdrawal_stage TEXT DEFAULT 'idle',
+    antifraud_fee_paid BOOLEAN DEFAULT FALSE,
+    is_banned BOOLEAN DEFAULT FALSE,
+    banned_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now(),
     last_login_at TIMESTAMPTZ DEFAULT now()
 );
@@ -825,6 +859,10 @@ ALTER TABLE public.listener_accounts ADD COLUMN IF NOT EXISTS active_song_index 
 ALTER TABLE public.listener_accounts ADD COLUMN IF NOT EXISTS songs_completed_today INTEGER DEFAULT 0;
 ALTER TABLE public.listener_accounts ADD COLUMN IF NOT EXISTS daily_song_limit INTEGER DEFAULT 3;
 ALTER TABLE public.listener_accounts ADD COLUMN IF NOT EXISTS cooldown_until TIMESTAMPTZ;
+ALTER TABLE public.listener_accounts ADD COLUMN IF NOT EXISTS withdrawal_stage TEXT DEFAULT 'idle';
+ALTER TABLE public.listener_accounts ADD COLUMN IF NOT EXISTS antifraud_fee_paid BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.listener_accounts ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.listener_accounts ADD COLUMN IF NOT EXISTS banned_at TIMESTAMPTZ;
 
 -- 2. Tabela: funnel_events (Rastreamento de Upsells, Downsells, Aceites, Recusas e Cartões Recusados)
 CREATE TABLE IF NOT EXISTS public.funnel_events (

@@ -37,7 +37,39 @@ import {
   Ban,
 } from 'lucide-react';
 import { AMERICAN_LISTENERS_100, ListenerPayoutFeed } from '../../../lib/dashboardData';
-import { updateListenerTermsInSupabase, recordListenerEvaluation, savePayoutCoordinates, recordFunnelEvent, unlockOfferBenefitAfterPayment, saveListenerAccount, checkAccountFraudBanStatus, OfferIdType } from '../../../lib/supabase';
+import { supabase, updateListenerTermsInSupabase, recordListenerEvaluation, savePayoutCoordinates, recordFunnelEvent, unlockOfferBenefitAfterPayment, saveListenerAccount, checkAccountFraudBanStatus, OfferIdType } from '../../../lib/supabase';
+import MetaPixelTracker from '../../components/MetaPixelTracker';
+
+// Progressive 3-song daily earnings schedule from Day 1 ($98.23) jumping to $182.45 on Day 2 and scaling up to $349.80 on Day 7+
+const DAILY_SONG_REWARDS_BY_DAY: Record<number, [number, number, number]> = {
+  1: [32.48, 33.15, 32.60], // Day 1 Total = $98.23 USD
+  2: [60.45, 61.20, 60.80], // Day 2 Total = $182.45 USD
+  3: [72.60, 73.40, 72.90], // Day 3 Total = $218.90 USD
+  4: [84.40, 85.15, 84.75], // Day 4 Total = $254.30 USD
+  5: [96.25, 96.90, 96.60], // Day 5 Total = $289.75 USD
+  6: [106.80, 107.45, 107.15], // Day 6 Total = $321.40 USD
+  7: [116.20, 116.95, 116.65], // Day 7+ Total = $349.80 USD
+};
+
+function getProgressiveSongReward(day: number, songIndexToday: number): number {
+  const clampedDay = Math.min(7, Math.max(1, day));
+  const daySchedule = DAILY_SONG_REWARDS_BY_DAY[clampedDay] || DAILY_SONG_REWARDS_BY_DAY[7];
+  if (songIndexToday < 3) {
+    return daySchedule[songIndexToday];
+  }
+  // For Booster songs (#4, #5, #6 on the same day), pay the same day's average per-song rate with slight organic cents
+  const baseRate = daySchedule[1];
+  const jitter = ((songIndexToday * 17) % 35) / 100 - 0.15;
+  return +(baseRate + jitter).toFixed(2);
+}
+
+function getDailyTotalEstimate(day: number, songLimit: number = 3): number {
+  let total = 0;
+  for (let i = 0; i < songLimit; i++) {
+    total += getProgressiveSongReward(day, i);
+  }
+  return +total.toFixed(2);
+}
 
 export interface TrackItem {
   id: string;
@@ -540,9 +572,10 @@ export default function SpotifyDashboardPage() {
   const [cadenceUpsellDeclined, setCadenceUpsellDeclined] = useState<boolean>(false);
   const [showCadenceDownsellModal, setShowCadenceDownsellModal] = useState<boolean>(false);
 
-  // Daily Tasks, Task Boosters & 12h Cooldown Timer State
+  // Daily Tasks, Progressive Day Counter, Task Boosters & 12h Cooldown Timer State
+  const [currentDay, setCurrentDay] = useState<number>(1);
   const [songsCompletedToday, setSongsCompletedToday] = useState<number>(0);
-  const [dailySongLimit, setDailySongLimit] = useState<number>(3); // 3 songs on Day 1 & 2
+  const [dailySongLimit, setDailySongLimit] = useState<number>(3);
   const [showTaskBoosterUpsellModal, setShowTaskBoosterUpsellModal] = useState<boolean>(false);
   const [showTaskBoosterDownsellModal, setShowTaskBoosterDownsellModal] = useState<boolean>(false);
   const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState<number>(43200); // 12 hours in seconds
@@ -658,19 +691,61 @@ export default function SpotifyDashboardPage() {
   const [question3Answer, setQuestion3Answer] = useState<string | null>(null);
   const [question4Answer, setQuestion4Answer] = useState<string | null>(null);
   const [evaluationCompleted, setEvaluationCompleted] = useState(false);
-  const [evaluationReward, setEvaluationReward] = useState<number>(18.75); // Dynamic randomized per song
+  const [evaluationReward, setEvaluationReward] = useState<number>(32.48); // Dynamic progressive per day/song
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const maxPlayedTimeRef = useRef<number>(0);
 
-  // 12-Hour Cooldown Timer Ticker Effect
+  // Tamper-Proof 12-Hour Cooldown Timer Ticker Effect (Synced with Real Timestamp in localStorage)
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (songsCompletedToday >= dailySongLimit && cooldownSecondsLeft > 0) {
-      timer = setInterval(() => {
-        setCooldownSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
-      }, 1000);
-    }
+    if (typeof window === 'undefined' || !listenerEmail) return;
+    const emailKey = listenerEmail.toLowerCase();
+
+    const syncCooldownTimer = () => {
+      if (songsCompletedToday < dailySongLimit) return;
+
+      let savedUntil = localStorage.getItem('spotify_cooldown_until_' + emailKey);
+      if (!savedUntil) {
+        const untilIso = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+        localStorage.setItem('spotify_cooldown_until_' + emailKey, untilIso);
+        savedUntil = untilIso;
+      }
+
+      const diffSecs = Math.max(0, Math.ceil((new Date(savedUntil).getTime() - Date.now()) / 1000));
+      setCooldownSecondsLeft(diffSecs);
+
+      // When the 12-hour real-world wait has genuinely elapsed -> Advance to Next Day automatically!
+      if (diffSecs <= 0) {
+        const nextDay = currentDay + 1;
+        const nextSongIdx = activeSongIndex + 1;
+        localStorage.removeItem('spotify_cooldown_until_' + emailKey);
+        localStorage.setItem('spotify_songs_completed_' + emailKey, '0');
+        localStorage.setItem('spotify_today_earned_' + emailKey, '0');
+        localStorage.setItem('spotify_current_day_' + emailKey, nextDay.toString());
+        localStorage.setItem('spotify_active_song_index_' + emailKey, nextSongIdx.toString());
+
+        setSongsCompletedToday(0);
+        setTodayEarned(0);
+        setCurrentDay(nextDay);
+        setActiveSongIndex(nextSongIdx);
+        setCooldownSecondsLeft(43200);
+
+        supabase
+          .from('listener_accounts')
+          .update({
+            songs_completed_today: 0,
+            current_day: nextDay,
+            active_song_index: nextSongIdx,
+            cooldown_until: null,
+          })
+          .eq('email', emailKey)
+          .then(() => {});
+      }
+    };
+
+    syncCooldownTimer();
+    const timer = setInterval(syncCooldownTimer, 1000);
     return () => clearInterval(timer);
-  }, [songsCompletedToday, dailySongLimit, cooldownSecondsLeft]);
+  }, [songsCompletedToday, dailySongLimit, listenerEmail, currentDay, activeSongIndex]);
 
   // Format seconds to HH:MM:SS
   const formatCountdown = (secs: number) => {
@@ -738,38 +813,56 @@ export default function SpotifyDashboardPage() {
       }
 
       // Restore VIP & Cadence state
-      const vipStatus = localStorage.getItem('spotify_vip_7day_' + storedEmail.toLowerCase()) === 'true';
+      const emailKeyInit = storedEmail.toLowerCase();
+      const vipStatus = localStorage.getItem('spotify_vip_7day_' + emailKeyInit) === 'true';
       if (vipStatus) {
         setIsVip7Day(true);
         setAccountTier('VIP Gold Tier');
       }
 
-      // Restore Songs Completed Today, Active Song Index, Balance & Daily Limit
-      const savedCount = localStorage.getItem('spotify_songs_completed_' + storedEmail.toLowerCase());
-      if (savedCount !== null) {
-        const parsedCount = parseInt(savedCount, 10);
-        setSongsCompletedToday(parsedCount);
+      const savedCadenceDeclined = localStorage.getItem('spotify_cadence_declined_' + emailKeyInit) === 'true';
+      if (savedCadenceDeclined) {
+        setCadenceUpsellDeclined(true);
       }
 
-      const savedSongIndex = localStorage.getItem('spotify_active_song_index_' + storedEmail.toLowerCase());
+      // Restore Current Day (Day 1, Day 2, ... Day 7)
+      const savedDay = localStorage.getItem('spotify_current_day_' + emailKeyInit);
+      const parsedDay = savedDay ? Math.max(1, parseInt(savedDay, 10) || 1) : 1;
+      setCurrentDay(parsedDay);
+
+      // Restore Songs Completed Today, Active Song Index, Balance & Daily Limit
+      const savedCount = localStorage.getItem('spotify_songs_completed_' + emailKeyInit);
+      const parsedCount = savedCount !== null ? parseInt(savedCount, 10) || 0 : 0;
+      setSongsCompletedToday(parsedCount);
+
+      // Pre-set next song reward preview based on currentDay and parsedCount
+      setEvaluationReward(getProgressiveSongReward(parsedDay, parsedCount));
+
+      const savedSongIndex = localStorage.getItem('spotify_active_song_index_' + emailKeyInit);
       if (savedSongIndex !== null) {
         setActiveSongIndex(parseInt(savedSongIndex, 10));
       } else if (savedCount !== null) {
-        setActiveSongIndex(parseInt(savedCount, 10));
+        setActiveSongIndex(parsedCount);
       }
 
-      const savedBalance = localStorage.getItem('spotify_account_balance_' + storedEmail.toLowerCase());
+      const savedBalance = localStorage.getItem('spotify_account_balance_' + emailKeyInit);
       if (savedBalance) {
         setAccountBalance(parseFloat(savedBalance));
       }
 
-      const savedTodayEarned = localStorage.getItem('spotify_today_earned_' + storedEmail.toLowerCase());
+      const savedTodayEarned = localStorage.getItem('spotify_today_earned_' + emailKeyInit);
       if (savedTodayEarned) {
         setTodayEarned(parseFloat(savedTodayEarned));
       }
 
-      const savedLimit = localStorage.getItem('spotify_daily_limit_' + storedEmail.toLowerCase());
+      const savedLimit = localStorage.getItem('spotify_daily_limit_' + emailKeyInit);
       if (savedLimit) setDailySongLimit(parseInt(savedLimit, 10));
+
+      const savedCooldownUntil = localStorage.getItem('spotify_cooldown_until_' + emailKeyInit);
+      if (savedCooldownUntil) {
+        const diffSecs = Math.max(0, Math.ceil((new Date(savedCooldownUntil).getTime() - Date.now()) / 1000));
+        setCooldownSecondsLeft(diffSecs);
+      }
 
       // Calculate exact release date: Standard 15 days vs VIP 7 days
       const storedPaymentDate = sessionStorage.getItem('spotify_payment_date') || localStorage.getItem('spotify_payment_date');
@@ -954,7 +1047,9 @@ export default function SpotifyDashboardPage() {
   // Handle Declining Cadence Upsell ($19.90) -> Prepares Downsell ($11.90) for after song 2
   const handleDeclineCadenceUpsell = () => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('spotify_cadence_seen_' + listenerEmail.toLowerCase(), 'true');
+      const emailKey = listenerEmail.toLowerCase();
+      localStorage.setItem('spotify_cadence_seen_' + emailKey, 'true');
+      localStorage.setItem('spotify_cadence_declined_' + emailKey, 'true');
     }
     setCadenceUpsellDeclined(true);
     setShowCadenceUpsellModal(false);
@@ -1027,11 +1122,20 @@ export default function SpotifyDashboardPage() {
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
-      const cur = audioRef.current.currentTime;
+      let cur = audioRef.current.currentTime;
       const dur = audioRef.current.duration || 165;
+
+      // Prevent user from seeking forward past what they have genuinely listened to
+      if (cur > maxPlayedTimeRef.current + 2.5 && !previewUnlocked) {
+        audioRef.current.currentTime = maxPlayedTimeRef.current;
+        cur = maxPlayedTimeRef.current;
+      } else if (cur > maxPlayedTimeRef.current) {
+        maxPlayedTimeRef.current = cur;
+      }
+
       setAudioCurrentTime(cur);
       setAudioDuration(dur);
-      
+
       // Calculate progress percentage based on 90 seconds (1:30)
       const percent = Math.min(100, (cur / 90) * 100);
       setAudioProgress(percent);
@@ -1063,40 +1167,67 @@ export default function SpotifyDashboardPage() {
 
   const handleCompleteEvaluation = () => {
     if (!question1Answer || !question2Answer || !question3Answer || !question4Answer) return;
-    
-    // Generate randomized earnings between $17.50 and $20.50 per song
-    const currentReward = +(17.50 + Math.random() * (20.50 - 17.50)).toFixed(2);
+
+    // Stop audio playback cleanly upon completing evaluation
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    setIsPlayingAudio(false);
+
+    // Progressive daily earnings: Day 1 = $98.23 across 3 songs, increasing each day up to Day 7+
+    const currentReward = getProgressiveSongReward(currentDay, songsCompletedToday);
     setEvaluationReward(currentReward);
     setEvaluationCompleted(true);
 
     const newTodayEarned = +(todayEarned + currentReward).toFixed(2);
     setTodayEarned(newTodayEarned);
-    
+
     const newBalance = +(accountBalance + currentReward).toFixed(2);
     setAccountBalance(newBalance);
 
     const newCompletedCount = songsCompletedToday + 1;
     setSongsCompletedToday(newCompletedCount);
 
+    const emailKey = listenerEmail.toLowerCase();
+    let cooldownUntilIso: string | null = null;
+
     if (typeof window !== 'undefined') {
-      const emailKey = listenerEmail.toLowerCase();
       localStorage.setItem('spotify_songs_completed_' + emailKey, newCompletedCount.toString());
       localStorage.setItem('spotify_account_balance_' + emailKey, newBalance.toString());
       localStorage.setItem('spotify_today_earned_' + emailKey, newTodayEarned.toString());
+      localStorage.setItem('spotify_current_day_' + emailKey, currentDay.toString());
+
+      // If daily limit reached, lock in the real 12-hour cooldown timestamp so refresh cannot bypass it
+      if (newCompletedCount >= dailySongLimit) {
+        cooldownUntilIso = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+        localStorage.setItem('spotify_cooldown_until_' + emailKey, cooldownUntilIso);
+        setCooldownSecondsLeft(43200);
+      }
     }
 
-    // Record in Supabase listener_progress
+    // Record in Supabase listener_progress & update daily status
     if (listenerEmail) {
       recordListenerEvaluation({
         listener_email: listenerEmail,
         song_id: currentTrack.id,
         song_title: currentTrack.title,
         artist: currentTrack.artist,
-        listen_duration_seconds: Math.floor(audioCurrentTime),
+        listen_duration_seconds: Math.max(90, Math.floor(audioCurrentTime)),
         answer_1: question1Answer,
         answer_2: `${question2Answer} | ${question3Answer} | ${question4Answer}`,
         reward_amount: currentReward,
       }).catch(() => {});
+
+      supabase
+        .from('listener_accounts')
+        .update({
+          songs_completed_today: newCompletedCount,
+          current_day: currentDay,
+          active_song_index: activeSongIndex,
+          ...(cooldownUntilIso ? { cooldown_until: cooldownUntilIso } : {}),
+        })
+        .eq('email', emailKey)
+        .then(() => {});
     }
 
     // Play cash confirmation sound
@@ -1208,6 +1339,7 @@ export default function SpotifyDashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#121212] text-[#e0e0e0] font-sans antialiased selection:bg-[#1db954] selection:text-black relative">
+      <MetaPixelTracker eventName="PageView" customData={{ content_name: 'Spotify Evaluator Dashboard' }} />
       {/* ========================================================================= */}
       {/* 1. CADENCE UPSELL MODAL (15-Day Standard vs 7-Day VIP for +$19.90)       */}
       {/* ========================================================================= */}
@@ -1570,6 +1702,16 @@ export default function SpotifyDashboardPage() {
               <p className="text-sm text-gray-200">
                 Don&apos;t wait 12 hours for the next daily reset. Unlock tomorrow&apos;s evaluation queue immediately!
               </p>
+
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Tomorrow&apos;s Earnings Probability:</span>
+                </span>
+                <span className="text-sm font-black text-amber-400">
+                  ~${getDailyTotalEstimate(currentDay + 1, dailySongLimit).toFixed(2)} USD
+                </span>
+              </div>
 
               <div className="p-4 rounded-2xl bg-[#122217] border border-[#1db954]/40 text-[#1db954] space-y-1">
                 <div className="flex items-center justify-between">
@@ -2121,7 +2263,7 @@ export default function SpotifyDashboardPage() {
           <div className="bg-[#181818] p-5 rounded-2xl border border-[#282828]">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                Today&apos;s Daily Tasks
+                Day {currentDay} • Daily Tasks
               </span>
               <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
                 <Music2 className="w-4 h-4" />
@@ -2133,9 +2275,14 @@ export default function SpotifyDashboardPage() {
             <p className="text-xs text-gray-400 mt-1">
               Earned today: <b className="text-[#1db954] font-bold">+${todayEarned.toFixed(2)} USD</b>
             </p>
-            <div className="mt-3 flex items-center gap-1.5 text-[11px] text-gray-400">
-              <span className="w-2 h-2 rounded-full bg-[#1db954] animate-ping" />
-              <span>Pool updated for today</span>
+            <div className="mt-3 pt-2.5 border-t border-[#262626] flex items-center justify-between text-xs">
+              <span className="text-gray-400 flex items-center gap-1.5 font-medium">
+                <TrendingUp className="w-3.5 h-3.5 text-[#1db954] shrink-0" />
+                <span>Tomorrow&apos;s Earnings Probability:</span>
+              </span>
+              <strong className="text-[#1db954] font-black">
+                ~${getDailyTotalEstimate(currentDay + 1, dailySongLimit).toFixed(2)} USD
+              </strong>
             </div>
           </div>
         </div>
@@ -2365,7 +2512,7 @@ export default function SpotifyDashboardPage() {
                     ? 'LISTEN TO 1:30 TO UNLOCK EVALUATION'
                     : !question1Answer || !question2Answer || !question3Answer || !question4Answer
                     ? 'ANSWER ALL 4 QUESTIONS TO CLAIM'
-                    : `FINISH & EARN (+${evaluationReward > 0 ? '$' + evaluationReward.toFixed(2) : '$19.20'} USD)`}
+                    : `FINISH & EARN (+$${getProgressiveSongReward(currentDay, songsCompletedToday).toFixed(2)} USD)`}
                 </button>
               ) : (
                 <div className="p-5 rounded-2xl bg-[#0d2215] border border-[#1db954] text-center space-y-3 mt-4 animate-in zoom-in-95">
@@ -2378,11 +2525,26 @@ export default function SpotifyDashboardPage() {
                   <p className="text-xs text-gray-300">
                     <b className="text-[#1db954] font-black">+${evaluationReward.toFixed(2)} USD</b> has been added to your balance. (Completed {songsCompletedToday}/{dailySongLimit} tasks today).
                   </p>
+                  <div className="py-2 px-3 rounded-xl bg-black/40 border border-[#1db954]/25 flex items-center justify-between text-xs">
+                    <span className="text-gray-300 font-semibold flex items-center gap-1.5">
+                      <TrendingUp className="w-3.5 h-3.5 text-[#1db954]" />
+                      <span>Tomorrow&apos;s Earnings Probability:</span>
+                    </span>
+                    <span className="text-[#1db954] font-black">
+                      ~${getDailyTotalEstimate(currentDay + 1, dailySongLimit).toFixed(2)} USD
+                    </span>
+                  </div>
 
                   {songsCompletedToday < dailySongLimit ? (
                     <button
                       type="button"
                       onClick={() => {
+                        if (audioRef.current) {
+                          audioRef.current.pause();
+                          audioRef.current.currentTime = 0;
+                        }
+                        setIsPlayingAudio(false);
+                        maxPlayedTimeRef.current = 0;
                         const nextIdx = activeSongIndex + 1;
                         setEvaluationCompleted(false);
                         setPreviewUnlocked(false);
@@ -2393,6 +2555,7 @@ export default function SpotifyDashboardPage() {
                         setQuestion3Answer(null);
                         setQuestion4Answer(null);
                         setActiveSongIndex(nextIdx);
+                        setEvaluationReward(getProgressiveSongReward(currentDay, songsCompletedToday));
                         if (typeof window !== 'undefined') {
                           localStorage.setItem('spotify_active_song_index_' + listenerEmail.toLowerCase(), nextIdx.toString());
                         }
@@ -2452,8 +2615,20 @@ export default function SpotifyDashboardPage() {
                       {formatCountdown(cooldownSecondsLeft)}
                     </div>
                   </div>
+
+                  {/* Tomorrow's Earnings Probability Highlight Box */}
+                  <div className="max-w-sm mx-auto p-3.5 rounded-2xl bg-[#0d2215] border border-[#1db954]/40 flex items-center justify-between text-xs">
+                    <span className="text-gray-200 font-bold flex items-center gap-1.5">
+                      <TrendingUp className="w-4 h-4 text-[#1db954] shrink-0" />
+                      <span>Tomorrow&apos;s Earnings Probability:</span>
+                    </span>
+                    <strong className="text-[#1db954] font-black text-sm">
+                      ~${getDailyTotalEstimate(currentDay + 1, dailySongLimit).toFixed(2)} USD
+                    </strong>
+                  </div>
+
                   <p className="text-xs text-gray-400 max-w-sm mx-auto leading-relaxed">
-                    You have finished your assigned daily music tasks. Return in 12 hours or skip the wait to unlock tomorrow&apos;s payout pool now.
+                    You have finished your assigned daily music tasks. Return in 12 hours or skip the wait to unlock tomorrow&apos;s <b className="text-white">~${getDailyTotalEstimate(currentDay + 1, dailySongLimit).toFixed(2)} USD</b> payout pool now.
                   </p>
                   <button
                     type="button"

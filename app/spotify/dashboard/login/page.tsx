@@ -179,14 +179,14 @@ function LoginFormContent() {
                 <label className="block text-xs font-bold text-[#b3b3b3] uppercase tracking-wider">
                   {isExistingUser ? 'Password' : 'Create Password'}
                 </label>
-                <span className="text-[11px] text-[#888]">Min. 6 chars</span>
+                <span className="text-[11px] text-[#888]">Min. 4 chars</span>
               </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
-                  minLength={6}
+                  minLength={4}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
