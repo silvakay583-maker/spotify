@@ -7,7 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { memo, useEffect, useRef, useState } from 'react';
 import { upsertCustomer } from '../../../lib/supabase';
-import MetaPixelTracker from '../../components/MetaPixelTracker';
+import MetaPixelTracker, { trackFunnelPixelEvent } from '../../components/MetaPixelTracker';
 
 type Song = {
   id: string;
@@ -1334,6 +1334,18 @@ export default function Page() {
       full_name: trimmed,
     }).catch((err) => console.warn('Chat lead save error:', err));
 
+    // Fire Lead / CompleteRegistration on TikTok Pixel + Meta Pixel
+    trackFunnelPixelEvent(
+      'Lead',
+      {
+        content_id: 'spotify_chat_lead',
+        content_name: 'Spotify Evaluator Registration',
+        value: 9.0,
+        currency: 'USD',
+      },
+      { full_name: trimmed }
+    );
+
     setFinalPhase(29); // Phase 29: Typing indicator (2s)
 
     const t1 = setTimeout(() => {
@@ -2181,6 +2193,15 @@ export default function Page() {
 
                       <Link
                         href="/payment"
+                        onClick={() => {
+                          trackFunnelPixelEvent('AddToCart', {
+                            content_id: 'front_9_00',
+                            content_name: 'Anti-Spam Security Pass',
+                            content_type: 'product',
+                            value: 9.0,
+                            currency: 'USD',
+                          });
+                        }}
                         className="verification-btn pop-bounce"
                         style={{
                           display: 'block',
