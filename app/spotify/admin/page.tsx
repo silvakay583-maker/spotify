@@ -2,43 +2,41 @@
 
 import {
   AlertCircle,
+  AlertTriangle,
+  BarChart3,
+  Ban,
+  Check,
   CheckCircle2,
   Clock,
+  Copy,
   CreditCard,
+  Database,
   DollarSign,
   Download,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  History,
   KeyRound,
+  Layers,
   LogOut,
+  Music2,
   RefreshCw,
   Search,
   ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  Trophy,
   User,
   Users,
   UserX,
-  XCircle,
-  Copy,
-  Check,
-  Code,
-  Database,
-  ExternalLink,
-  Music2,
-  Eye,
-  EyeOff,
-  TrendingUp,
-  Trophy,
-  Sparkles,
-  BarChart3,
-  Layers,
-  History,
   X,
-  AlertTriangle,
-  ArrowUpRight,
-  Ban,
+  XCircle,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
-import { supabase, SPOTIFY_SCHEMA_SQL, FunnelEventRecord } from '../../../lib/supabase';
+import { SPOTIFY_SCHEMA_SQL, supabase } from '../../../lib/supabase';
 
 interface CustomerLead {
   id: string;
@@ -53,6 +51,7 @@ interface PaymentItem {
   full_name?: string;
   amount?: number;
   currency?: string;
+  stripe_payment_id?: string;
   status: string; // succeeded, declined, failed
   error_message?: string;
   country?: string;
@@ -130,6 +129,7 @@ interface CustomerProfileSummary {
   account?: ListenerAccountItem;
   evaluationsCount: number;
   virtualBalance: number;
+  commissionsEarned: number;
   lastActivityAt: string;
   paymentsHistory: PaymentItem[];
   funnelHistory: FunnelEventItem[];
@@ -139,7 +139,7 @@ interface CustomerProfileSummary {
 const CATALOG_OFFERS = [
   {
     id: 'front_9_00',
-    name: 'Front-End: Taxa de Ativação Bancária',
+    name: 'Front-End: Taxa de Ativação ($9.00)',
     shortBadge: 'Ativação ($9.00)',
     price: 9.0,
     type: 'FRONT-END',
@@ -147,77 +147,79 @@ const CATALOG_OFFERS = [
   },
   {
     id: 'upsell_vip_19_90',
-    name: 'Upsell #1: Passe Saque VIP 7 Dias',
+    name: 'Upsell #1: Saque VIP 7 Dias ($19.90)',
     shortBadge: 'VIP 7 Dias ($19.90)',
     price: 19.9,
     type: 'UPSELL #1',
-    description: 'Reduz o prazo de saque de 15 dias para 7 dias (exibido após aceitar contrato)',
+    description: 'Reduz o prazo de saque de 15 dias para 7 dias (após aceitar diretrizes)',
   },
   {
     id: 'downsell_vip_11_90',
-    name: 'Downsell #1: Saque VIP 7 Dias (40% OFF)',
+    name: 'Downsell #1: Saque VIP 7 Dias ($11.90)',
     shortBadge: 'Downsell VIP ($11.90)',
     price: 11.9,
     type: 'DOWNSELL #1',
-    description: 'Oferta com desconto para quem recusou o Upsell #1 (exibido após a 2ª música)',
+    description: '40% OFF para quem recusou o Upsell #1 (exibido após a 2ª música)',
   },
   {
     id: 'upsell_booster3_16_97',
-    name: 'Upsell #2: Booster +3 Músicas por Dia',
+    name: 'Upsell #2: Booster +3 Músicas/Dia ($16.97)',
     shortBadge: 'Booster +3 ($16.97)',
     price: 16.97,
     type: 'UPSELL #2',
-    description: 'Aumenta o limite diário de 3 para 6 músicas/dia (exibido ao bater 3/3 músicas)',
+    description: 'Aumenta o limite diário de 3 para 6 músicas/dia (ao concluir 3/3 músicas)',
   },
   {
     id: 'downsell_booster2_9_12',
-    name: 'Downsell #2: Booster +2 Músicas por Dia',
+    name: 'Downsell #2: Booster +2 Músicas/Dia ($9.12)',
     shortBadge: 'Booster +2 ($9.12)',
     price: 9.12,
     type: 'DOWNSELL #2',
-    description: 'Aumenta o limite diário para 5 músicas/dia para quem recusou o Booster de $16.97',
+    description: 'Expande o limite diário para 5 músicas/dia para quem recusou o Booster +3',
   },
   {
     id: 'upsell_skip12h_9_65',
-    name: 'Upsell #3: Destravar Timer de 12 Horas',
+    name: 'Upsell #3: Pular Timer de 12h ($9.65)',
     shortBadge: 'Pulou 12h ($9.65)',
     price: 9.65,
     type: 'UPSELL #3',
-    description: 'Libera imediatamente o próximo lote de músicas sem esperar o cronômetro de 12h',
+    description: 'Destrava imediatamente o próximo dia sem aguardar as 12 horas',
   },
   {
     id: 'upsell_antifraud_9_97',
-    name: 'Upsell #4: Taxa Anti-Fraude do Saque (Pós-KYC)',
+    name: 'Upsell #4: Taxa Anti-Fraude Saque ($9.97)',
     shortBadge: 'Anti-Fraude ($9.97)',
     price: 9.97,
     type: 'UPSELL #4',
-    description: 'Taxa de verificação anti-fraude cobrada após o envio de documentos KYC no funil de saque (somada ao saldo)',
+    description: 'Taxa de liberação bancária após envio de documentos KYC no saque',
   },
 ];
 
 export default function SpotifyAdminPage() {
-  // Login State
+  // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Navigation & Filters State
+  // Navigation & Filters State — Default to 'clientes' for immediate clarity
   const [activeTab, setActiveTab] = useState<
-    'funil' | 'ranking' | 'recusados' | 'leads' | 'sql_editor'
-  >('funil');
+    'clientes' | 'funil' | 'transacoes' | 'leads' | 'sql_editor'
+  >('clientes');
   const [statusFilter, setStatusFilter] = useState<'all' | 'succeeded' | 'declined'>('all');
   const [leadFilter, setLeadFilter] = useState<'all' | 'abandoned' | 'approved' | 'declined' | 'active'>('all');
-  const [rankingFilter, setRankingFilter] = useState<'all' | 'buyers' | 'upsell_buyers' | 'declined_upsell'>('all');
+  const [customerFilter, setCustomerFilter] = useState<
+    'all' | 'buyers' | 'with_account' | 'upsell_buyers' | 'declined_upsell'
+  >('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sqlCopied, setSqlCopied] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState<{ [email: string]: boolean }>({});
 
-  // Selected Customer for Detailed Timeline Modal
+  // Selected Customer Modal
   const [selectedCustomerModal, setSelectedCustomerModal] = useState<CustomerProfileSummary | null>(null);
 
-  // Database + Local Data State
+  // Raw Data State
   const [leads, setLeads] = useState<CustomerLead[]>([]);
   const [payments, setPayments] = useState<PaymentItem[]>([]);
   const [cardTests, setCardTests] = useState<CardTestItem[]>([]);
@@ -225,17 +227,14 @@ export default function SpotifyAdminPage() {
   const [progressList, setProgressList] = useState<ListenerProgressItem[]>([]);
   const [funnelEvents, setFunnelEvents] = useState<FunnelEventItem[]>([]);
 
-  // Check login on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storedAuth = sessionStorage.getItem('spotify_admin_authed');
-      if (storedAuth === 'true') {
+      if (sessionStorage.getItem('spotify_admin_authed') === 'true') {
         setIsAuthenticated(true);
       }
     }
   }, []);
 
-  // Fetch data when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       fetchAdminData();
@@ -245,14 +244,13 @@ export default function SpotifyAdminPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
-
     if (username.trim() === 'admin' && password === '123456') {
       setIsAuthenticated(true);
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('spotify_admin_authed', 'true');
       }
     } else {
-      setLoginError('Usuário ou senha inválidos. Verifique suas credenciais de administrador.');
+      setLoginError('Usuário ou senha incorretos.');
     }
   };
 
@@ -266,52 +264,67 @@ export default function SpotifyAdminPage() {
   const fetchAdminData = async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch Customers / Leads
-      const { data: leadsData } = await supabase
-        .from('customers')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [leadsRes, paymentsRes, cardTestsRes] = await Promise.all([
+        supabase.from('customers').select('*').order('created_at', { ascending: false }),
+        supabase.from('payments').select('*').order('created_at', { ascending: false }),
+        supabase.from('security_card_tests').select('*').order('created_at', { ascending: false }),
+      ]);
 
-      if (leadsData) {
-        setLeads(leadsData);
+      if (leadsRes.data) setLeads(leadsRes.data);
+
+      // Deduplicate raw payments from Supabase (e.g. if an old webhook created customer@verified.com alongside a real email at the same minute)
+      if (paymentsRes.data) {
+        const rawList: PaymentItem[] = paymentsRes.data;
+        const dedupedPayments: PaymentItem[] = [];
+
+        for (const p of rawList) {
+          const pEmail = (p.email || '').trim().toLowerCase();
+          const pAmt = Number(p.amount || 9.0);
+          const pTime = new Date(p.created_at).getTime();
+
+          // Skip synthetic webhook fallback row if there is a real customer payment within 3 minutes for the same amount
+          if (p.status === 'succeeded' && pEmail === 'customer@verified.com') {
+            const hasRealMatch = rawList.some(
+              (other) =>
+                other.id !== p.id &&
+                other.status === 'succeeded' &&
+                (other.email || '').trim().toLowerCase() !== 'customer@verified.com' &&
+                Math.abs(Number(other.amount || 9.0) - pAmt) < 0.05 &&
+                Math.abs(new Date(other.created_at).getTime() - pTime) < 3 * 60 * 1000
+            );
+            if (hasRealMatch) continue;
+          }
+
+          // Skip duplicate succeeded row for same email + same amount within 10 minutes
+          if (p.status === 'succeeded' && pEmail) {
+            const alreadyAdded = dedupedPayments.some(
+              (added) =>
+                added.status === 'succeeded' &&
+                (added.email || '').trim().toLowerCase() === pEmail &&
+                Math.abs(Number(added.amount || 9.0) - pAmt) < 0.05 &&
+                Math.abs(new Date(added.created_at).getTime() - pTime) < 10 * 60 * 1000
+            );
+            if (alreadyAdded) continue;
+          }
+
+          dedupedPayments.push(p);
+        }
+
+        setPayments(dedupedPayments);
       }
 
-      // 2. Fetch Payments
-      const { data: paymentsData } = await supabase
-        .from('payments')
-        .select('*')
-        .order('created_at', { ascending: false });
+      if (cardTestsRes.data) setCardTests(cardTestsRes.data);
 
-      if (paymentsData) {
-        setPayments(paymentsData);
-      }
-
-      // 3. Fetch Card Tests
-      const { data: cardTestsData } = await supabase
-        .from('security_card_tests')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (cardTestsData) {
-        setCardTests(cardTestsData);
-      }
-
-      // 4. Fetch App Listener Accounts (plus localStorage fallback)
+      // Fetch Listener Accounts
       let loadedAccounts: ListenerAccountItem[] = [];
       try {
         const { data: accountsData } = await supabase
           .from('listener_accounts')
           .select('*')
           .order('created_at', { ascending: false });
+        if (accountsData) loadedAccounts = accountsData;
+      } catch {}
 
-        if (accountsData && accountsData.length > 0) {
-          loadedAccounts = accountsData;
-        }
-      } catch (e) {
-        console.warn('Notice loading listener_accounts:', e);
-      }
-
-      // Merge any local browser accounts so the admin always sees local tests too
       if (typeof window !== 'undefined') {
         try {
           for (let i = 0; i < localStorage.length; i++) {
@@ -329,9 +342,29 @@ export default function SpotifyAdminPage() {
                     email: parsed.email,
                     full_name: parsed.full_name || 'Ouvinte Verificado',
                     password: parsed.password || '••••••',
-                    balance: Number(localStorage.getItem('spotify_account_balance_' + parsed.email.toLowerCase())) || parsed.balance || 114.93,
-                    completed_evaluations: Number(localStorage.getItem('spotify_songs_completed_' + parsed.email.toLowerCase())) || parsed.completed_evaluations || 0,
-                    accepted_terms: localStorage.getItem('spotify_terms_accepted_' + parsed.email.toLowerCase()) === 'true' || parsed.accepted_terms,
+                    balance:
+                      Number(localStorage.getItem('spotify_account_balance_' + parsed.email.toLowerCase())) ||
+                      parsed.balance ||
+                      114.93,
+                    current_day:
+                      Number(localStorage.getItem('spotify_current_day_' + parsed.email.toLowerCase())) ||
+                      parsed.current_day ||
+                      1,
+                    songs_completed_today:
+                      Number(localStorage.getItem('spotify_songs_completed_' + parsed.email.toLowerCase())) ||
+                      parsed.songs_completed_today ||
+                      0,
+                    daily_song_limit:
+                      Number(localStorage.getItem('spotify_daily_limit_' + parsed.email.toLowerCase())) ||
+                      parsed.daily_song_limit ||
+                      3,
+                    completed_evaluations:
+                      Number(localStorage.getItem('spotify_songs_completed_' + parsed.email.toLowerCase())) ||
+                      parsed.completed_evaluations ||
+                      0,
+                    accepted_terms:
+                      localStorage.getItem('spotify_terms_accepted_' + parsed.email.toLowerCase()) === 'true' ||
+                      parsed.accepted_terms,
                     created_at: parsed.created_at || parsed.last_login_at || new Date().toISOString(),
                     last_login_at: parsed.last_login_at || new Date().toISOString(),
                   });
@@ -343,36 +376,24 @@ export default function SpotifyAdminPage() {
       }
       setAccounts(loadedAccounts);
 
-      // 5. Fetch App Progress & Song Evaluations
-      let loadedProgress: ListenerProgressItem[] = [];
+      // Fetch Song Progress
       try {
         const { data: progressData } = await supabase
           .from('listener_progress')
           .select('*')
           .order('created_at', { ascending: false });
+        if (progressData) setProgressList(progressData);
+      } catch {}
 
-        if (progressData && progressData.length > 0) {
-          loadedProgress = progressData;
-        }
-      } catch (e) {
-        console.warn('Notice loading listener_progress:', e);
-      }
-      setProgressList(loadedProgress);
-
-      // 6. Fetch Funnel Events (Upsell/Downsell views, accepts, declines)
+      // Fetch Funnel Events
       let combinedFunnelEvents: FunnelEventItem[] = [];
       try {
         const { data: funnelData } = await supabase
           .from('funnel_events')
           .select('*')
           .order('created_at', { ascending: false });
-
-        if (funnelData && funnelData.length > 0) {
-          combinedFunnelEvents = funnelData;
-        }
-      } catch (e) {
-        console.warn('Notice loading funnel_events:', e);
-      }
+        if (funnelData) combinedFunnelEvents = funnelData;
+      } catch {}
 
       if (typeof window !== 'undefined') {
         try {
@@ -387,9 +408,7 @@ export default function SpotifyAdminPage() {
                 fe.action === le.action &&
                 Math.abs(new Date(fe.created_at).getTime() - new Date(le.created_at).getTime()) < 5000
             );
-            if (!alreadyIn) {
-              combinedFunnelEvents.push(le);
-            }
+            if (!alreadyIn) combinedFunnelEvents.push(le);
           }
           combinedFunnelEvents.sort(
             (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -398,24 +417,22 @@ export default function SpotifyAdminPage() {
       }
       setFunnelEvents(combinedFunnelEvents);
     } catch (err) {
-      console.warn('Erro ao carregar dados do painel admin:', err);
+      console.warn('Erro ao carregar dados do admin:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
   // =========================================================================
-  // CÁLCULO DE MÉTRICAS FINANCEIRAS, TICKET MÉDIO (AOV), UPSELLS E CONVERSÃO
+  // CÁLCULO DE MÉTRICAS FINANCEIRAS E DE USO DO APP (SEM DUPLICIDADE)
   // =========================================================================
   const approvedPayments = payments.filter((p) => p.status === 'succeeded');
   const declinedPayments = payments.filter((p) => p.status === 'declined' || p.status === 'failed');
 
-  // Identify Upsell/Downsell accepted events that might not be in `payments` yet
   const acceptedFunnelUpsells = funnelEvents.filter(
     (e) => e.action === 'accepted' && e.offer_id !== 'front_9_00'
   );
 
-  // Calculate Front-End vs Upsell Revenue accurately without double-counting
   const frontEndPayments = approvedPayments.filter(
     (p) => !p.amount || Math.abs(Number(p.amount) - 9.0) < 0.05
   );
@@ -423,7 +440,6 @@ export default function SpotifyAdminPage() {
     (p) => p.amount && Math.abs(Number(p.amount) - 9.0) >= 0.05
   );
 
-  // Merge upsell revenue from `payments` and `funnelEvents` (deduplicated by email + amount)
   let totalUpsellRevenue = upsellPaymentsInTable.reduce((acc, p) => acc + Number(p.amount || 0), 0);
   let totalUpsellSalesCount = upsellPaymentsInTable.length;
 
@@ -442,7 +458,6 @@ export default function SpotifyAdminPage() {
   const frontEndRevenue = frontEndPayments.reduce((acc, p) => acc + Number(p.amount || 9.0), 0);
   const totalGrossRevenue = frontEndRevenue + totalUpsellRevenue;
 
-  // Unique Paying Customers for Real Ticket Médio (AOV)
   const uniqueBuyerEmails = new Set<string>();
   approvedPayments.forEach((p) => {
     if (p.email) uniqueBuyerEmails.add(p.email.trim().toLowerCase());
@@ -452,16 +467,10 @@ export default function SpotifyAdminPage() {
   });
 
   const uniqueBuyersCount = uniqueBuyerEmails.size;
-  const averageOrderValue =
-    uniqueBuyersCount > 0 ? totalGrossRevenue / uniqueBuyersCount : 0;
-
-  const upsellRevenueShare =
-    totalGrossRevenue > 0 ? ((totalUpsellRevenue / totalGrossRevenue) * 100).toFixed(1) : '0.0';
-
+  const averageOrderValue = uniqueBuyersCount > 0 ? totalGrossRevenue / uniqueBuyersCount : 0;
   const approvalRate =
     payments.length > 0 ? ((approvedPayments.length / payments.length) * 100).toFixed(1) : '0.0';
 
-  // Helper to determine status of a lead based on payment and time elapsed (10 minutes)
   const getLeadStatus = (lead: CustomerLead): 'approved' | 'declined' | 'abandoned' | 'active' => {
     const emailClean = lead.email.toLowerCase();
     const hasPaid =
@@ -472,23 +481,14 @@ export default function SpotifyAdminPage() {
     const hasDeclined = declinedPayments.some((p) => p.email?.toLowerCase() === emailClean);
     if (hasDeclined) return 'declined';
 
-    const createdAtMs = new Date(lead.created_at).getTime();
-    const minutesElapsed = (Date.now() - createdAtMs) / (1000 * 60);
-
-    if (minutesElapsed >= 10) {
-      return 'abandoned';
-    }
-
-    return 'active';
+    const minutesElapsed = (Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60);
+    return minutesElapsed >= 10 ? 'abandoned' : 'active';
   };
 
   const abandonedLeadsCount = leads.filter((l) => getLeadStatus(l) === 'abandoned').length;
-  const approvedLeadsCount = leads.filter((l) => getLeadStatus(l) === 'approved').length;
-  const declinedLeadsCount = leads.filter((l) => getLeadStatus(l) === 'declined').length;
-  const activeLeadsCount = leads.filter((l) => getLeadStatus(l) === 'active').length;
 
   // =========================================================================
-  // RAIO-X DE PERFORMANCE POR OFERTA (FRONT + 5 UPSELLS/DOWNSELLS)
+  // RAIO-X POR OFERTA
   // =========================================================================
   const offerPerformanceStats = CATALOG_OFFERS.map((offer) => {
     if (offer.id === 'front_9_00') {
@@ -500,26 +500,15 @@ export default function SpotifyAdminPage() {
       const declined = abandonedLeadsCount;
       const revenue = accepted * 9.0;
       const convRate = views > 0 ? ((accepted / views) * 100).toFixed(1) : '0.0';
-
-      return {
-        ...offer,
-        views,
-        accepted,
-        declined,
-        cardDeclines,
-        revenue,
-        convRate,
-      };
+      return { ...offer, views, accepted, declined, cardDeclines, revenue, convRate };
     }
 
-    // For Upsells & Downsells: combine `funnelEvents` and `payments` matching the price
     const evsForOffer = funnelEvents.filter((e) => e.offer_id === offer.id);
     const viewedCount = evsForOffer.filter((e) => e.action === 'viewed').length;
     const acceptedFromEvents = evsForOffer.filter((e) => e.action === 'accepted');
     const declinedCount = evsForOffer.filter((e) => e.action === 'declined').length;
     const cardDeclinedFromEvents = evsForOffer.filter((e) => e.action === 'card_declined').length;
 
-    // Also check `payments` table for matching price
     const paymentsMatchingPrice = approvedPayments.filter(
       (p) => p.amount && Math.abs(Number(p.amount) - offer.price) < 0.03
     );
@@ -528,10 +517,8 @@ export default function SpotifyAdminPage() {
     );
 
     const acceptedEmailsSet = new Set<string>();
-    acceptedFromEvents.forEach((e) => acceptedEmailsSet.add(e.email.toLowerCase() + '_' + e.created_at.slice(0, 16)));
-    paymentsMatchingPrice.forEach((p) =>
-      acceptedEmailsSet.add((p.email || 'anon').toLowerCase() + '_' + p.created_at.slice(0, 16))
-    );
+    acceptedFromEvents.forEach((e) => acceptedEmailsSet.add(e.email.toLowerCase()));
+    paymentsMatchingPrice.forEach((p) => acceptedEmailsSet.add((p.email || 'anon').toLowerCase()));
 
     const accepted = Math.max(acceptedFromEvents.length, paymentsMatchingPrice.length, acceptedEmailsSet.size);
     const cardDeclines = Math.max(cardDeclinedFromEvents, declinedPaymentsMatchingPrice.length);
@@ -539,19 +526,11 @@ export default function SpotifyAdminPage() {
     const revenue = accepted * offer.price;
     const convRate = views > 0 ? ((accepted / views) * 100).toFixed(1) : '0.0';
 
-    return {
-      ...offer,
-      views,
-      accepted,
-      declined: declinedCount,
-      cardDeclines,
-      revenue,
-      convRate,
-    };
+    return { ...offer, views, accepted, declined: declinedCount, cardDeclines, revenue, convRate };
   });
 
   // =========================================================================
-  // CONSTRUÇÃO DO RANKING DE CLIENTES ("WHALES" / LTV INDIVIDUAL)
+  // PERFIS UNIFICADOS DE CLIENTES (COMPRAS + SENHA + LOGIN + MÚSICAS + COMISSÃO)
   // =========================================================================
   const customerProfilesMap = new Map<string, CustomerProfileSummary>();
 
@@ -570,6 +549,7 @@ export default function SpotifyAdminPage() {
         viewedOffersCount: 0,
         evaluationsCount: 0,
         virtualBalance: 114.93,
+        commissionsEarned: 0,
         lastActivityAt: dateRaw || new Date().toISOString(),
         paymentsHistory: [],
         funnelHistory: [],
@@ -588,20 +568,18 @@ export default function SpotifyAdminPage() {
     return customerProfilesMap.get(email)!;
   };
 
-  // 1. Populate from Leads
   leads.forEach((l) => {
     ensureCustomerProfile(l.email, l.full_name, l.created_at);
   });
 
-  // 2. Populate from Listener Accounts
   accounts.forEach((acc) => {
     const prof = ensureCustomerProfile(acc.email, acc.full_name, acc.last_login_at || acc.created_at);
     prof.account = acc;
     prof.virtualBalance = Number(acc.balance ?? 114.93);
-    prof.evaluationsCount = Number(acc.completed_evaluations ?? 0);
+    prof.commissionsEarned = Math.max(0, +(prof.virtualBalance - 114.93).toFixed(2));
+    prof.evaluationsCount = Number(acc.completed_evaluations ?? acc.songs_completed_today ?? 0);
   });
 
-  // 3. Populate from Payments
   payments.forEach((p) => {
     if (!p.email) return;
     const prof = ensureCustomerProfile(p.email, p.full_name, p.created_at);
@@ -613,29 +591,20 @@ export default function SpotifyAdminPage() {
 
     const amt = Number(p.amount || 9.0);
     if (p.status === 'succeeded') {
-      prof.totalSpent = +(prof.totalSpent + amt).toFixed(2);
-      prof.approvedPurchasesCount += 1;
-
       const matchedOffer = CATALOG_OFFERS.find((o) => Math.abs(o.price - amt) < 0.05);
-      if (Math.abs(amt - 9.0) < 0.05) {
-        prof.frontEndPaid = true;
-      }
-      if (matchedOffer) {
-        const alreadyListed = prof.acceptedOffers.some((ao) => ao.id === matchedOffer.id);
-        if (!alreadyListed) {
-          prof.acceptedOffers.push({
-            id: matchedOffer.id,
-            label: matchedOffer.shortBadge,
-            amount: amt,
-            isDownsell: matchedOffer.id.startsWith('downsell_'),
-            date: p.created_at,
-          });
-        }
-      } else {
+      const offerId = matchedOffer ? matchedOffer.id : 'custom_' + p.id;
+      const alreadyListed = prof.acceptedOffers.some((ao) => ao.id === offerId);
+
+      if (!alreadyListed) {
+        prof.totalSpent = +(prof.totalSpent + amt).toFixed(2);
+        prof.approvedPurchasesCount += 1;
+        if (Math.abs(amt - 9.0) < 0.05) prof.frontEndPaid = true;
+
         prof.acceptedOffers.push({
-          id: 'custom_' + p.id,
-          label: `Compra ($${amt.toFixed(2)})`,
+          id: offerId,
+          label: matchedOffer ? matchedOffer.shortBadge : `Compra ($${amt.toFixed(2)})`,
           amount: amt,
+          isDownsell: offerId.startsWith('downsell_'),
           date: p.created_at,
         });
       }
@@ -644,7 +613,6 @@ export default function SpotifyAdminPage() {
     }
   });
 
-  // 4. Populate from Funnel Events (Upsells / Downsells viewed, accepted, declined)
   funnelEvents.forEach((ev) => {
     const prof = ensureCustomerProfile(ev.email, ev.full_name, ev.created_at);
     prof.funnelHistory.push(ev);
@@ -654,7 +622,9 @@ export default function SpotifyAdminPage() {
     }
 
     const matchedOffer = CATALOG_OFFERS.find((o) => o.id === ev.offer_id);
-    const badgeLabel = matchedOffer ? matchedOffer.shortBadge : `${ev.offer_name} ($${Number(ev.amount).toFixed(2)})`;
+    const badgeLabel = matchedOffer
+      ? matchedOffer.shortBadge
+      : `${ev.offer_name} ($${Number(ev.amount).toFixed(2)})`;
 
     if (ev.action === 'viewed') {
       prof.viewedOffersCount += 1;
@@ -687,27 +657,42 @@ export default function SpotifyAdminPage() {
     }
   });
 
-  // 5. Populate from Song Evaluations Progress
   progressList.forEach((pr) => {
     const prof = ensureCustomerProfile(pr.listener_email, undefined, pr.created_at);
     prof.songsHistory.push(pr);
     if (prof.songsHistory.length > prof.evaluationsCount) {
       prof.evaluationsCount = prof.songsHistory.length;
     }
+    const sumFromHistory = prof.songsHistory.reduce((acc, s) => acc + Number(s.reward_amount || 0), 0);
+    if (sumFromHistory > prof.commissionsEarned) {
+      prof.commissionsEarned = +sumFromHistory.toFixed(2);
+      if (prof.virtualBalance <= 114.93) {
+        prof.virtualBalance = +(114.93 + sumFromHistory).toFixed(2);
+      }
+    }
   });
 
-  // Convert map to array sorted by Total Spent (LTV) descending, then by approvedPurchasesCount, then lastActivityAt
   const allCustomerProfiles = Array.from(customerProfilesMap.values())
-    .filter((c) => !c.email.includes('@spotify.lead') || c.totalSpent > 0 || c.declinedCardsCount > 0)
+    .filter(
+      (c) =>
+        !c.email.includes('@spotify.lead') ||
+        c.totalSpent > 0 ||
+        c.declinedCardsCount > 0 ||
+        Boolean(c.account)
+    )
     .sort((a, b) => {
       if (b.totalSpent !== a.totalSpent) return b.totalSpent - a.totalSpent;
-      if (b.approvedPurchasesCount !== a.approvedPurchasesCount)
-        return b.approvedPurchasesCount - a.approvedPurchasesCount;
-      if (b.declinedCardsCount !== a.declinedCardsCount) return b.declinedCardsCount - a.declinedCardsCount;
+      if (Boolean(b.account) !== Boolean(a.account)) return b.account ? 1 : -1;
+      if (b.evaluationsCount !== a.evaluationsCount) return b.evaluationsCount - a.evaluationsCount;
       return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime();
     });
 
-  // Filtered Customer Profiles for Ranking Tab
+  const totalAccountsCreated = allCustomerProfiles.filter((c) => Boolean(c.account?.password)).length;
+  const totalSongsEvaluatedAllUsers = allCustomerProfiles.reduce(
+    (acc, c) => acc + c.evaluationsCount,
+    0
+  );
+
   const filteredCustomerProfiles = allCustomerProfiles.filter((c) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
@@ -717,15 +702,15 @@ export default function SpotifyAdminPage() {
 
     const hasUpsellBought = c.acceptedOffers.some((o) => o.id !== 'front_9_00');
     const matchesFilter =
-      rankingFilter === 'all' ||
-      (rankingFilter === 'buyers' && c.totalSpent > 0) ||
-      (rankingFilter === 'upsell_buyers' && hasUpsellBought) ||
-      (rankingFilter === 'declined_upsell' && c.declinedOffers.length > 0);
+      customerFilter === 'all' ||
+      (customerFilter === 'buyers' && c.totalSpent > 0) ||
+      (customerFilter === 'with_account' && Boolean(c.account)) ||
+      (customerFilter === 'upsell_buyers' && hasUpsellBought) ||
+      (customerFilter === 'declined_upsell' && c.declinedOffers.length > 0);
 
     return matchesSearch && matchesFilter;
   });
 
-  // Filtered Leads for Leads Tab
   const filteredLeads = leads.filter((item) => {
     const q = searchQuery.toLowerCase();
     const matchesQuery =
@@ -744,7 +729,6 @@ export default function SpotifyAdminPage() {
     return matchesQuery && matchesFilter;
   });
 
-  // Filtered Declined / All Payments
   const filteredPayments = payments.filter((item) => {
     const q = searchQuery.toLowerCase();
     const matchesQuery =
@@ -761,7 +745,6 @@ export default function SpotifyAdminPage() {
     return matchesQuery && matchesStatus;
   });
 
-  // Filtered Card Tests
   const filteredCardTests = cardTests.filter((item) => {
     const q = searchQuery.toLowerCase();
     return (
@@ -771,38 +754,24 @@ export default function SpotifyAdminPage() {
     );
   });
 
-  // Export to CSV in Portuguese
   const exportCSV = () => {
     let csvContent = 'data:text/csv;charset=utf-8,';
-
-    if (activeTab === 'ranking') {
-      csvContent += 'Nome,Email,Total Gasto LTV ($),Compras Aprovadas,Ofertas Compradas,Ofertas Recusadas,Cartoes Recusados,Musicas Avaliadas,Saldo Virtual ($)\n';
+    if (activeTab === 'clientes') {
+      csvContent +=
+        'Nome,Email,Total Gasto LTV ($),Criou Senha,Senha,Assinou Contrato,Dia Atual,Musicas Avaliadas,Comissao Ganha ($),Saldo Total ($),Ofertas Compradas\n';
       filteredCustomerProfiles.forEach((c) => {
         const bought = c.acceptedOffers.map((o) => o.label).join(' | ') || 'Nenhuma';
-        const refused = c.declinedOffers.map((o) => o.label).join(' | ') || 'Nenhuma';
-        csvContent += `"${c.full_name}","${c.email}","${c.totalSpent.toFixed(2)}","${c.approvedPurchasesCount}","${bought}","${refused}","${c.declinedCardsCount}","${c.evaluationsCount}","${c.virtualBalance.toFixed(2)}"\n`;
-      });
-    } else if (activeTab === 'leads') {
-      csvContent += 'ID,Nome Completo,Email,Data de Cadastro,Status no Funil\n';
-      filteredLeads.forEach((l) => {
-        const s = getLeadStatus(l);
-        const statusText =
-          s === 'approved'
-            ? 'Cliente Aprovado (Comprou)'
-            : s === 'declined'
-            ? 'Cartao Recusado'
-            : s === 'abandoned'
-            ? 'Desistiu da compra (>10m sem pagar)'
-            : 'No checkout (<10m)';
-        csvContent += `"${l.id}","${l.full_name || 'N/A'}","${l.email}","${l.created_at}","${statusText}"\n`;
-      });
-    } else if (activeTab === 'recusados') {
-      csvContent += 'ID,Nome,Email,Valor ($),Status,Motivo / Oferta,Pais,Data\n';
-      filteredPayments.forEach((p) => {
-        csvContent += `"${p.id}","${p.full_name || 'N/A'}","${p.email || 'N/A'}","${(p.amount || 9.0).toFixed(2)}","${p.status}","${p.error_message || 'N/A'}","${p.country || 'US'}","${p.created_at}"\n`;
+        csvContent += `"${c.full_name}","${c.email}","${c.totalSpent.toFixed(2)}","${
+          c.account?.password ? 'Sim' : 'Nao'
+        }","${c.account?.password || ''}","${c.account?.accepted_terms ? 'Sim' : 'Nao'}","Dia ${
+          c.account?.current_day || 1
+        }","${c.evaluationsCount}","${c.commissionsEarned.toFixed(2)}","${c.virtualBalance.toFixed(
+          2
+        )}","${bought}"\n`;
       });
     } else {
-      csvContent += 'Oferta,Preco ($),Visualizacoes,Compras Aprovadas,Recusas (Clicou Nao),Cartoes Recusados,Taxa de Conversao (%),Receita Gerada ($)\n';
+      csvContent +=
+        'Oferta,Preco ($),Visualizacoes,Compras Aprovadas,Recusas,Cartoes Recusados,Conversao (%),Receita ($)\n';
       offerPerformanceStats.forEach((o) => {
         csvContent += `"${o.name}","${o.price.toFixed(2)}","${o.views}","${o.accepted}","${o.declined}","${o.cardDeclines}","${o.convRate}%","${o.revenue.toFixed(2)}"\n`;
       });
@@ -811,35 +780,35 @@ export default function SpotifyAdminPage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `spotify_admin_${activeTab}_relatorio.csv`);
+    link.setAttribute('download', `spotify_admin_${activeTab}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   // =========================================================================
-  // TELA DE LOGIN DO ADMIN (100% EM PORTUGUÊS)
+  // LOGIN SCREEN
   // =========================================================================
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#070a08] text-[#e0e0e0] font-sans antialiased flex items-center justify-center p-4 selection:bg-[#1db954] selection:text-black">
-        <div className="w-full max-w-md bg-[#0b0e0c] border border-[#1d2520] rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black relative overflow-hidden">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-72 h-72 bg-[#1db954]/15 rounded-full blur-3xl pointer-events-none -z-10" />
-
+      <div className="min-h-screen bg-[#090b0a] text-white font-sans antialiased flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-[#111513] border border-[#222b26] rounded-2xl p-6 sm:p-8 shadow-2xl">
           <div className="text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-[#1db954] text-black flex items-center justify-center mx-auto mb-3 shadow-lg shadow-[#1db954]/25">
-              <ShieldCheck className="w-8 h-8 stroke-[2.5]" />
+            <div className="w-12 h-12 rounded-xl bg-[#1db954] text-black flex items-center justify-center mx-auto mb-3">
+              <ShieldCheck className="w-7 h-7 stroke-[2.2]" />
             </div>
-            <h1 className="text-2xl font-black text-white tracking-tight">Spotify Rewards</h1>
+            <h1 className="text-xl font-bold text-white tracking-tight">
+              Spotify Rewards • Admin
+            </h1>
             <p className="text-xs text-gray-400 mt-1">
-              Central de Inteligência do Funil, LTV, Upsells &amp; Pagamentos
+              Painel Executivo de Clientes, Senhas, Músicas &amp; Faturamento
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-300 mb-1.5">
-                Usuário Admin
+              <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                Usuário
               </label>
               <div className="relative">
                 <input
@@ -847,16 +816,16 @@ export default function SpotifyAdminPage() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="admin"
-                  className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors pl-11"
+                  className="w-full bg-[#161c19] border border-[#28332c] rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#1db954] pl-10"
                   required
                 />
-                <User className="w-5 h-5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-300 mb-1.5">
-                Senha de Acesso
+              <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                Senha
               </label>
               <div className="relative">
                 <input
@@ -864,10 +833,10 @@ export default function SpotifyAdminPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-[#131715] border border-[#26312a] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors pl-11"
+                  className="w-full bg-[#161c19] border border-[#28332c] rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#1db954] pl-10"
                   required
                 />
-                <KeyRound className="w-5 h-5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <KeyRound className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
             </div>
 
@@ -880,54 +849,42 @@ export default function SpotifyAdminPage() {
 
             <button
               type="submit"
-              className="w-full py-4 bg-[#1db954] hover:bg-[#1ed760] active:scale-[0.98] text-black font-black text-sm uppercase tracking-wider rounded-2xl transition-all shadow-lg shadow-[#1db954]/20 cursor-pointer mt-2"
+              className="w-full py-3.5 bg-[#1db954] hover:bg-[#1ed760] text-black font-bold text-sm rounded-xl transition-all cursor-pointer"
             >
-              Entrar no Painel Admin
+              Acessar Painel Admin
             </button>
           </form>
-
-          <div className="mt-6 pt-4 border-t border-[#1d2520] text-center text-[11px] text-gray-500">
-            Acesso Restrito • Inteligência Financeira &amp; Rastreamento de Funil
-          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#070a08] text-[#e0e0e0] font-sans antialiased selection:bg-[#1db954] selection:text-black pb-16">
-      {/* Top Ambient Glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-80 bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,rgba(29,185,84,0.15),transparent_80%)] pointer-events-none -z-10" />
-
+    <div className="min-h-screen bg-[#090b0a] text-[#e5e7eb] font-sans antialiased pb-16">
       {/* ========================================================================= */}
-      {/* MODAL DE LINHA DO TEMPO INDIVIDUAL DO CLIENTE                             */}
+      {/* MODAL DE RAIO-X COMPLETO DO CLIENTE                                       */}
       {/* ========================================================================= */}
       {selectedCustomerModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-3xl max-h-[88vh] bg-[#0b0e0c] border border-[#243028] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl max-h-[88vh] bg-[#111513] border border-[#26312b] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-[#111613] border-b border-[#1f2822] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#1db954]/15 border border-[#1db954]/40 text-[#1db954] flex items-center justify-center font-black">
-                  <History className="w-5 h-5" />
+            <div className="px-6 py-4 bg-[#151a17] border-b border-[#222b26] flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-base font-bold text-white">
+                    {selectedCustomerModal.full_name}
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-md bg-[#1db954]/15 text-[#1db954] border border-[#1db954]/30 font-bold text-xs tabular-nums">
+                    Gasto Total: ${selectedCustomerModal.totalSpent.toFixed(2)} USD
+                  </span>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-black text-white">
-                      Raio-X &amp; Linha do Tempo do Cliente
-                    </h3>
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#1db954] text-black font-black text-[11px]">
-                      LTV: ${selectedCustomerModal.totalSpent.toFixed(2)} USD
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-400 font-mono">
-                    {selectedCustomerModal.full_name} • {selectedCustomerModal.email}
-                  </p>
-                </div>
+                <p className="text-xs text-gray-400 font-mono mt-0.5">
+                  {selectedCustomerModal.email}
+                </p>
               </div>
               <button
                 onClick={() => setSelectedCustomerModal(null)}
-                className="p-2 rounded-xl bg-[#18201b] hover:bg-[#222d26] text-gray-300 hover:text-white cursor-pointer"
+                className="p-2 rounded-lg bg-[#1c2420] hover:bg-[#26312b] text-gray-300 hover:text-white cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -935,144 +892,153 @@ export default function SpotifyAdminPage() {
 
             {/* Modal Content */}
             <div className="p-6 overflow-y-auto space-y-6 text-xs">
-              {/* Top Mini Summary Cards */}
+              {/* 4 Mini Summary KPIs */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 rounded-2xl bg-[#111613] border border-[#1f2822]">
-                  <span className="text-[10px] uppercase font-bold text-gray-400 block">
-                    Total Gasto (LTV)
-                  </span>
-                  <span className="text-xl font-black text-[#1db954] mt-0.5 block">
+                <div className="p-3.5 rounded-xl bg-[#151a17] border border-[#222b26]">
+                  <span className="text-[11px] text-gray-400 block">Total Gasto (LTV)</span>
+                  <span className="text-lg font-bold text-[#1db954] tabular-nums mt-0.5 block">
                     ${selectedCustomerModal.totalSpent.toFixed(2)}
                   </span>
-                  <span className="text-[10px] text-gray-500">
-                    {selectedCustomerModal.approvedPurchasesCount} compra(s) aprovada(s)
+                  <span className="text-[11px] text-gray-500">
+                    {selectedCustomerModal.approvedPurchasesCount} compra(s)
                   </span>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[#111613] border border-[#1f2822]">
-                  <span className="text-[10px] uppercase font-bold text-gray-400 block">
-                    Cartões Recusados
-                  </span>
-                  <span className="text-xl font-black text-red-400 mt-0.5 block">
-                    {selectedCustomerModal.declinedCardsCount}
-                  </span>
-                  <span className="text-[10px] text-gray-500">Tentativas negadas</span>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-[#111613] border border-[#1f2822]">
-                  <span className="text-[10px] uppercase font-bold text-gray-400 block">
-                    Músicas Avaliadas
-                  </span>
-                  <span className="text-xl font-black text-white mt-0.5 block">
+                <div className="p-3.5 rounded-xl bg-[#151a17] border border-[#222b26]">
+                  <span className="text-[11px] text-gray-400 block">Músicas Ouvidas</span>
+                  <span className="text-lg font-bold text-white tabular-nums mt-0.5 block">
                     {selectedCustomerModal.evaluationsCount} / 20
                   </span>
-                  <span className="text-[10px] text-gray-500">No painel de tarefas</span>
+                  <span className="text-[11px] text-gray-500">
+                    Dia {selectedCustomerModal.account?.current_day || 1} no App
+                  </span>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[#111613] border border-[#1f2822]">
-                  <span className="text-[10px] uppercase font-bold text-gray-400 block">
-                    Saldo Acumulado App
+                <div className="p-3.5 rounded-xl bg-[#151a17] border border-[#222b26]">
+                  <span className="text-[11px] text-gray-400 block">Comissão Ganha</span>
+                  <span className="text-lg font-bold text-[#1db954] tabular-nums mt-0.5 block">
+                    +${selectedCustomerModal.commissionsEarned.toFixed(2)}
                   </span>
-                  <span className="text-xl font-black text-amber-400 mt-0.5 block">
+                  <span className="text-[11px] text-gray-500">Em músicas no dashboard</span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-[#151a17] border border-[#222b26]">
+                  <span className="text-[11px] text-gray-400 block">Saldo Total no App</span>
+                  <span className="text-lg font-bold text-amber-400 tabular-nums mt-0.5 block">
                     ${selectedCustomerModal.virtualBalance.toFixed(2)}
                   </span>
-                  <span className="text-[10px] text-gray-500">Saldo virtual interno</span>
+                  <span className="text-[11px] text-gray-500">Inicial $114.93 + Músicas</span>
                 </div>
               </div>
 
-              {/* Compras Aprovadas vs Ofertas Recusadas */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-2xl bg-[#0e1912] border border-[#1db954]/30 space-y-2.5">
-                  <h4 className="font-black text-[#1db954] uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Ofertas Compradas ({selectedCustomerModal.acceptedOffers.length})</span>
-                  </h4>
-                  {selectedCustomerModal.acceptedOffers.length === 0 ? (
-                    <p className="text-gray-400 text-[11px]">Nenhuma oferta comprada ainda.</p>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {selectedCustomerModal.acceptedOffers.map((off, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between bg-black/40 px-3 py-2 rounded-xl border border-[#1db954]/20"
-                        >
-                          <span className="font-bold text-white">{off.label}</span>
-                          <span className="font-mono font-black text-[#1db954]">
-                            +${off.amount.toFixed(2)} USD
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4 rounded-2xl bg-red-950/20 border border-red-500/30 space-y-2.5">
-                  <h4 className="font-black text-red-400 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                    <Ban className="w-4 h-4" />
-                    <span>Upsells/Downsells Recusados ({selectedCustomerModal.declinedOffers.length})</span>
-                  </h4>
-                  {selectedCustomerModal.declinedOffers.length === 0 ? (
-                    <p className="text-gray-400 text-[11px]">
-                      Nenhuma oferta recusada registrada para este cliente.
-                    </p>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {selectedCustomerModal.declinedOffers.map((off, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between bg-black/40 px-3 py-2 rounded-xl border border-red-500/20"
-                        >
-                          <span className="font-bold text-red-200">Recusou: {off.label}</span>
-                          <span className="text-[10px] text-gray-400">
-                            {new Date(off.date).toLocaleString('pt-BR')}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Histórico de Transações e Tentativas de Cartão */}
-              <div className="space-y-2">
-                <h4 className="font-black text-white uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                  <CreditCard className="w-4 h-4 text-indigo-400" />
-                  <span>Histórico de Pagamentos &amp; Tentativas de Cartão ({selectedCustomerModal.paymentsHistory.length})</span>
+              {/* Dados de Acesso no App (Senha, Login, Diretrizes, Saque) */}
+              <div className="p-4 rounded-xl bg-[#151a17] border border-[#222b26] space-y-3">
+                <h4 className="font-bold text-white text-xs flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-[#1db954]" />
+                  <span>Acesso ao App, Senha &amp; Progresso Diário</span>
                 </h4>
-                {selectedCustomerModal.paymentsHistory.length === 0 ? (
-                  <p className="text-gray-500 text-xs bg-[#111613] p-3 rounded-xl border border-[#1f2822]">
-                    Nenhuma tentativa de cartão registrada na tabela de pagamentos.
+
+                {selectedCustomerModal.account ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-[#0e1210] p-3 rounded-lg border border-[#1f2723] space-y-1">
+                      <span className="text-gray-400 block text-[11px]">Senha &amp; Diretrizes</span>
+                      <div className="font-mono text-white font-bold">
+                        Senha:{' '}
+                        <span className="text-[#1db954]">
+                          {selectedCustomerModal.account.password || 'Não criada'}
+                        </span>
+                      </div>
+                      <div className="text-[11px]">
+                        {selectedCustomerModal.account.accepted_terms ? (
+                          <span className="text-[#1db954] font-semibold">
+                            ✓ Assinou as Diretrizes
+                          </span>
+                        ) : (
+                          <span className="text-amber-400 font-semibold">
+                            ⏳ Diretrizes Pendentes
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-[#0e1210] p-3 rounded-lg border border-[#1f2723] space-y-1">
+                      <span className="text-gray-400 block text-[11px]">Status de Login</span>
+                      <div className="text-white font-semibold">
+                        {selectedCustomerModal.account.last_login_at
+                          ? 'Acessou o Dashboard'
+                          : 'Conta Registrada'}
+                      </div>
+                      <div className="text-gray-400 font-mono text-[11px]">
+                        Último acesso:{' '}
+                        {new Date(
+                          selectedCustomerModal.account.last_login_at ||
+                            selectedCustomerModal.account.created_at
+                        ).toLocaleString('pt-BR')}
+                      </div>
+                    </div>
+
+                    <div className="bg-[#0e1210] p-3 rounded-lg border border-[#1f2723] space-y-1">
+                      <span className="text-gray-400 block text-[11px]">Rotina &amp; Saque</span>
+                      <div className="text-white font-semibold">
+                        Dia {selectedCustomerModal.account.current_day || 1} • Hoje:{' '}
+                        {selectedCustomerModal.account.songs_completed_today ?? 0}/
+                        {selectedCustomerModal.account.daily_song_limit ?? 3} músicas
+                      </div>
+                      <div className="text-gray-400 text-[11px]">
+                        Saque:{' '}
+                        <strong className="text-white uppercase">
+                          {selectedCustomerModal.account.payout_method?.replace('_', ' ') ||
+                            'Direct Deposit'}
+                        </strong>{' '}
+                        ({selectedCustomerModal.account.is_vip_7day ? 'VIP 7 Dias' : 'Padrão 15d'})
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-gray-400 text-xs">
+                    Este cliente ainda não criou senha nem entrou no `/spotify/dashboard`.
+                  </p>
+                )}
+              </div>
+
+              {/* Músicas Avaliadas e Comissão por Música */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-white text-xs flex items-center gap-2">
+                  <Music2 className="w-4 h-4 text-[#1db954]" />
+                  <span>
+                    Músicas Escutadas no Dashboard ({selectedCustomerModal.songsHistory.length})
+                  </span>
+                </h4>
+                {selectedCustomerModal.songsHistory.length === 0 ? (
+                  <p className="text-gray-400 text-xs bg-[#151a17] p-3.5 rounded-xl border border-[#222b26]">
+                    Nenhuma música avaliada no dashboard registrada até o momento.
                   </p>
                 ) : (
-                  <div className="rounded-xl border border-[#1f2822] overflow-hidden">
-                    <table className="w-full text-left text-[11px]">
-                      <thead className="bg-[#111613] text-gray-400 uppercase text-[10px]">
+                  <div className="rounded-xl border border-[#222b26] overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#151a17] text-gray-400 text-[11px] border-b border-[#222b26]">
                         <tr>
-                          <th className="px-3 py-2">Data / Hora</th>
-                          <th className="px-3 py-2">Valor</th>
-                          <th className="px-3 py-2">Status</th>
-                          <th className="px-3 py-2">Detalhes / Motivo</th>
+                          <th className="px-3.5 py-2.5">Data / Hora</th>
+                          <th className="px-3.5 py-2.5">Música &amp; Artista</th>
+                          <th className="px-3.5 py-2.5">Tempo Escutado</th>
+                          <th className="px-3.5 py-2.5 text-right">Comissão Ganha</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#1f2822]">
-                        {selectedCustomerModal.paymentsHistory.map((p) => (
-                          <tr key={p.id}>
-                            <td className="px-3 py-2 text-gray-400 font-mono">
-                              {new Date(p.created_at).toLocaleString('pt-BR')}
+                      <tbody className="divide-y divide-[#1f2723]">
+                        {selectedCustomerModal.songsHistory.map((s) => (
+                          <tr key={s.id}>
+                            <td className="px-3.5 py-2.5 text-gray-400 font-mono text-[11px]">
+                              {new Date(s.created_at).toLocaleString('pt-BR')}
                             </td>
-                            <td className="px-3 py-2 font-black text-white font-mono">
-                              ${Number(p.amount || 9.0).toFixed(2)} USD
+                            <td className="px-3.5 py-2.5">
+                              <span className="font-semibold text-white">{s.song_title}</span>{' '}
+                              <span className="text-gray-400">• {s.artist}</span>
                             </td>
-                            <td className="px-3 py-2">
-                              {p.status === 'succeeded' ? (
-                                <span className="text-[#1db954] font-bold">✅ Aprovado</span>
-                              ) : (
-                                <span className="text-red-400 font-bold">❌ Cartão Recusado</span>
-                              )}
+                            <td className="px-3.5 py-2.5 font-mono text-gray-300">
+                              {s.listen_duration_seconds ? `${s.listen_duration_seconds}s` : '90s+'}
                             </td>
-                            <td className="px-3 py-2 text-gray-300">
-                              {p.error_message ||
-                                (p.status === 'succeeded' ? 'Pagamento confirmado' : 'Recusado pelo banco emissor')}
+                            <td className="px-3.5 py-2.5 text-right font-mono font-bold text-[#1db954]">
+                              +${Number(s.reward_amount || 0).toFixed(2)} USD
                             </td>
                           </tr>
                         ))}
@@ -1082,68 +1048,67 @@ export default function SpotifyAdminPage() {
                 )}
               </div>
 
-              {/* Histórico de Cliques nos Modais de Upsell/Downsell */}
-              {selectedCustomerModal.funnelHistory.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-black text-white uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                    <span>Rastreamento de Eventos nos Modais de Upsell ({selectedCustomerModal.funnelHistory.length})</span>
-                  </h4>
-                  <div className="rounded-xl border border-[#1f2822] overflow-hidden">
-                    <table className="w-full text-left text-[11px]">
-                      <thead className="bg-[#111613] text-gray-400 uppercase text-[10px]">
+              {/* Histórico de Pagamentos */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-white text-xs flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-[#1db954]" />
+                  <span>
+                    Histórico de Compras &amp; Tentativas ({selectedCustomerModal.paymentsHistory.length})
+                  </span>
+                </h4>
+                {selectedCustomerModal.paymentsHistory.length === 0 ? (
+                  <p className="text-gray-400 text-xs bg-[#151a17] p-3.5 rounded-xl border border-[#222b26]">
+                    Nenhuma transação registrada para este e-mail.
+                  </p>
+                ) : (
+                  <div className="rounded-xl border border-[#222b26] overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#151a17] text-gray-400 text-[11px] border-b border-[#222b26]">
                         <tr>
-                          <th className="px-3 py-2">Horário</th>
-                          <th className="px-3 py-2">Oferta</th>
-                          <th className="px-3 py-2">Valor</th>
-                          <th className="px-3 py-2">Ação do Cliente</th>
+                          <th className="px-3.5 py-2.5">Data / Hora</th>
+                          <th className="px-3.5 py-2.5">Valor</th>
+                          <th className="px-3.5 py-2.5">Status</th>
+                          <th className="px-3.5 py-2.5">Descrição</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#1f2822]">
-                        {selectedCustomerModal.funnelHistory.map((ev) => (
-                          <tr key={ev.id}>
-                            <td className="px-3 py-2 text-gray-400 font-mono">
-                              {new Date(ev.created_at).toLocaleString('pt-BR')}
+                      <tbody className="divide-y divide-[#1f2723]">
+                        {selectedCustomerModal.paymentsHistory.map((p) => (
+                          <tr key={p.id}>
+                            <td className="px-3.5 py-2.5 text-gray-400 font-mono text-[11px]">
+                              {new Date(p.created_at).toLocaleString('pt-BR')}
                             </td>
-                            <td className="px-3 py-2 font-bold text-white">{ev.offer_name}</td>
-                            <td className="px-3 py-2 font-mono text-gray-300">
-                              ${Number(ev.amount).toFixed(2)}
+                            <td className="px-3.5 py-2.5 font-mono font-bold text-white">
+                              ${Number(p.amount || 9.0).toFixed(2)} USD
                             </td>
-                            <td className="px-3 py-2">
-                              {ev.action === 'accepted' ? (
-                                <span className="px-2 py-0.5 rounded-full bg-[#1db954]/15 text-[#1db954] font-bold">
-                                  🟢 Comprou / Aceitou
-                                </span>
-                              ) : ev.action === 'declined' ? (
-                                <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-300 font-bold">
-                                  🔴 Recusou a Oferta
-                                </span>
-                              ) : ev.action === 'card_declined' ? (
-                                <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-bold">
-                                  ⚠️ Cartão Recusado
-                                </span>
+                            <td className="px-3.5 py-2.5">
+                              {p.status === 'succeeded' ? (
+                                <span className="text-[#1db954] font-semibold">Aprovado</span>
                               ) : (
-                                <span className="px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 font-bold">
-                                  👁️ Visualizou o Modal
-                                </span>
+                                <span className="text-red-400 font-semibold">Recusado</span>
                               )}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-gray-300">
+                              {p.error_message ||
+                                (p.status === 'succeeded'
+                                  ? 'Pagamento confirmado'
+                                  : 'Cartão recusado pelo emissor')}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-3.5 bg-[#111613] border-t border-[#1f2822] flex items-center justify-end">
+            <div className="px-6 py-3.5 bg-[#151a17] border-t border-[#222b26] flex items-center justify-end">
               <button
                 onClick={() => setSelectedCustomerModal(null)}
-                className="px-5 py-2 rounded-xl bg-[#1db954] hover:bg-[#1ed760] text-black font-black text-xs uppercase cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-[#1db954] hover:bg-[#1ed760] text-black font-bold text-xs cursor-pointer"
               >
-                Fechar Histórico
+                Fechar
               </button>
             </div>
           </div>
@@ -1151,52 +1116,52 @@ export default function SpotifyAdminPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* CABEÇALHO SUPERIOR DO ADMIN (100% EM PORTUGUÊS)                           */}
+      {/* TOP BAR LIMPA E ORGANIZADA                                                */}
       {/* ========================================================================= */}
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-black/85 border-b border-[#1d2520] px-4 sm:px-8 py-4">
+      <header className="sticky top-0 z-40 bg-[#0d110f]/95 backdrop-blur-md border-b border-[#1e2622] px-4 sm:px-8 py-3.5">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link href="/spotify" className="flex items-center gap-2.5">
-              <div className="relative w-8 h-8 rounded-full overflow-hidden bg-black flex items-center justify-center">
-                <Image
-                  src="/spotify-logo.webp"
-                  alt="Spotify Logo"
-                  width={32}
-                  height={32}
-                  priority
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              <span className="text-white font-black text-lg tracking-tight">Spotify Rewards</span>
+              <Image
+                src="/spotify-logo.webp"
+                alt="Spotify"
+                width={28}
+                height={28}
+                className="rounded-full"
+                priority
+                referrerPolicy="no-referrer"
+              />
+              <span className="text-white font-bold text-base tracking-tight">
+                Spotify Rewards
+              </span>
             </Link>
-
-            <span className="bg-[#1db954]/10 text-[#1db954] border border-[#1db954]/30 text-[11px] font-extrabold uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#1db954] animate-pulse" />
-              Painel Admin • Inteligência de Funil &amp; LTV
-            </span>
+            <span className="text-gray-600">·</span>
+            <span className="text-xs font-medium text-gray-400">Painel Administrativo</span>
           </div>
 
           <div className="flex items-center gap-2.5">
             <button
               onClick={fetchAdminData}
               disabled={isLoading}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#111613] hover:bg-[#18211b] border border-[#222f26] text-xs font-bold text-gray-200 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-[#151b18] hover:bg-[#1c2420] border border-[#26312b] text-xs font-semibold text-gray-200 transition-colors cursor-pointer"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-[#1db954] ${isLoading ? 'animate-spin' : ''}`} />
-              <span>Atualizar Dados</span>
+              <RefreshCw
+                className={`w-3.5 h-3.5 text-[#1db954] ${isLoading ? 'animate-spin' : ''}`}
+              />
+              <span>Atualizar</span>
             </button>
 
             <button
               onClick={exportCSV}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#111613] hover:bg-[#18211b] border border-[#222f26] text-xs font-bold text-gray-200 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-[#151b18] hover:bg-[#1c2420] border border-[#26312b] text-xs font-semibold text-gray-200 transition-colors cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5 text-blue-400" />
+              <Download className="w-3.5 h-3.5 text-gray-400" />
               <span>Exportar CSV</span>
             </button>
 
             <button
               onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-xs font-bold text-red-400 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 text-xs font-semibold text-red-400 transition-colors cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Sair</span>
@@ -1205,551 +1170,306 @@ export default function SpotifyAdminPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-8">
-        {/* ========================================================================= */}
-        {/* 1. KPIS FINANCEIROS E DE FUNIL NO TOPO (6 CARTÕES EXECUTIVOS)             */}
-        {/* ========================================================================= */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-          {/* Card 1: Faturamento Bruto Total */}
-          <div className="bg-[#0b0e0c] border border-[#1db954]/40 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
-            <div className="flex items-center justify-between text-gray-400 mb-1.5">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#1db954]">
-                Faturamento Bruto
-              </span>
+      {/* ========================================================================= */}
+      {/* CONTEÚDO PRINCIPAL                                                        */}
+      {/* ========================================================================= */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-8 py-6 space-y-6">
+        {/* 1. 4 KPIS EXECUTIVOS CLAROS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Receita Total */}
+          <div className="bg-[#111513] border border-[#222b26] rounded-xl p-5">
+            <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+              <span className="font-medium">Faturamento Total</span>
               <DollarSign className="w-4 h-4 text-[#1db954]" />
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              ${totalGrossRevenue.toFixed(2)}
+            <div className="text-2xl sm:text-3xl font-bold text-white tabular-nums tracking-tight">
+              ${totalGrossRevenue.toFixed(2)}{' '}
+              <span className="text-xs font-normal text-gray-400">USD</span>
             </div>
-            <p className="text-[11px] text-gray-400 mt-1">
-              Front (${frontEndRevenue.toFixed(2)}) + Upsells (${totalUpsellRevenue.toFixed(2)})
-            </p>
+            <div className="mt-2 flex items-center gap-2 text-xs text-gray-400 tabular-nums">
+              <span>Front: ${frontEndRevenue.toFixed(2)}</span>
+              <span>·</span>
+              <span className="text-[#1db954] font-medium">
+                Upsells: ${totalUpsellRevenue.toFixed(2)}
+              </span>
+            </div>
           </div>
 
-          {/* Card 2: Ticket Médio Real (AOV) */}
-          <div className="bg-[#0b0e0c] border border-amber-500/40 rounded-2xl p-4 sm:p-5 shadow-xl">
-            <div className="flex items-center justify-between text-gray-400 mb-1.5">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-400">
-                Ticket Médio (AOV)
-              </span>
-              <TrendingUp className="w-4 h-4 text-amber-400" />
+          {/* Card 2: Vendas & Ticket Médio */}
+          <div className="bg-[#111513] border border-[#222b26] rounded-xl p-5">
+            <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+              <span className="font-medium">Compradores &amp; Ticket Médio</span>
+              <TrendingUp className="w-4 h-4 text-[#1db954]" />
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-400 tracking-tight">
-              ${averageOrderValue.toFixed(2)}
+            <div className="text-2xl sm:text-3xl font-bold text-white tabular-nums tracking-tight">
+              {uniqueBuyersCount}{' '}
+              <span className="text-sm font-normal text-gray-400">clientes</span>
             </div>
-            <p className="text-[11px] text-gray-400 mt-1">
-              Média gasta por cada um dos {uniqueBuyersCount} compradores
-            </p>
+            <div className="mt-2 flex items-center gap-2 text-xs text-gray-400 tabular-nums">
+              <span>Ticket Médio: ${averageOrderValue.toFixed(2)}</span>
+              <span>·</span>
+              <span>{approvedPayments.length} cobranças</span>
+            </div>
           </div>
 
-          {/* Card 3: Receita Extra de Upsells & Downsells */}
-          <div className="bg-[#0b0e0c] border border-[#1d2520] rounded-2xl p-4 sm:p-5 shadow-xl">
-            <div className="flex items-center justify-between text-gray-400 mb-1.5">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400">
-                Receita de Upsells
+          {/* Card 3: Uso do App (Senhas Criadas & Músicas Ouvidas) */}
+          <div className="bg-[#111513] border border-[#222b26] rounded-xl p-5">
+            <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+              <span className="font-medium">Atividade no Dashboard</span>
+              <Music2 className="w-4 h-4 text-[#1db954]" />
+            </div>
+            <div className="text-2xl sm:text-3xl font-bold text-white tabular-nums tracking-tight">
+              {totalAccountsCreated}{' '}
+              <span className="text-sm font-normal text-gray-400">contas ativas</span>
+            </div>
+            <div className="mt-2 flex items-center gap-2 text-xs text-gray-400 tabular-nums">
+              <span className="text-[#1db954] font-medium">
+                {totalSongsEvaluatedAllUsers} músicas ouvidas
               </span>
-              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <span>·</span>
+              <span>Com senha criada</span>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight">
-              ${totalUpsellRevenue.toFixed(2)}
-            </div>
-            <p className="text-[11px] text-gray-400 mt-1">
-              {totalUpsellSalesCount} vendas extras ({upsellRevenueShare}% do lucro)
-            </p>
           </div>
 
-          {/* Card 4: Taxa de Aprovação */}
-          <div className="bg-[#0b0e0c] border border-[#1d2520] rounded-2xl p-4 sm:p-5 shadow-xl">
-            <div className="flex items-center justify-between text-gray-400 mb-1.5">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-400">
-                Taxa de Aprovação
-              </span>
-              <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+          {/* Card 4: Conversão & Recusas */}
+          <div className="bg-[#111513] border border-[#222b26] rounded-xl p-5">
+            <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+              <span className="font-medium">Checkout &amp; Abandonos</span>
+              <CreditCard className="w-4 h-4 text-gray-400" />
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              {approvalRate}%
+            <div className="text-2xl sm:text-3xl font-bold text-white tabular-nums tracking-tight">
+              {approvalRate}%{' '}
+              <span className="text-sm font-normal text-gray-400">aprovação</span>
             </div>
-            <p className="text-[11px] text-gray-400 mt-1">
-              {approvedPayments.length} aprovados de {payments.length} tentativas
-            </p>
-          </div>
-
-          {/* Card 5: Cartões Recusados */}
-          <div className="bg-[#0b0e0c] border border-red-500/30 rounded-2xl p-4 sm:p-5 shadow-xl">
-            <div className="flex items-center justify-between text-gray-400 mb-1.5">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-red-400">
-                Cartão Recusado
-              </span>
-              <XCircle className="w-4 h-4 text-red-400" />
+            <div className="mt-2 flex items-center gap-2 text-xs text-gray-400 tabular-nums">
+              <span className="text-red-400">{declinedPayments.length} recusados</span>
+              <span>·</span>
+              <span>{abandonedLeadsCount} abandonos</span>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-red-400 tracking-tight">
-              {declinedPayments.length + cardTests.length}
-            </div>
-            <p className="text-[11px] text-gray-400 mt-1">
-              {declinedPayments.length} no checkout • {cardTests.length} cartões salvos
-            </p>
-          </div>
-
-          {/* Card 6: Leads Desistentes (>10m) */}
-          <div className="bg-[#0b0e0c] border border-[#1d2520] rounded-2xl p-4 sm:p-5 shadow-xl">
-            <div className="flex items-center justify-between text-gray-400 mb-1.5">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-rose-400">
-                Desistiram (&gt;10m)
-              </span>
-              <UserX className="w-4 h-4 text-rose-400" />
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-rose-400 tracking-tight">
-              {abandonedLeadsCount}
-            </div>
-            <p className="text-[11px] text-gray-400 mt-1">
-              De {leads.length} leads totais capturados
-            </p>
           </div>
         </div>
 
-        {/* ========================================================================= */}
-        {/* BARRA DE NAVEGAÇÃO DE ABAS E BUSCA EM PORTUGUÊS                           */}
-        {/* ========================================================================= */}
-        <div className="bg-[#0b0e0c] border border-[#1d2520] rounded-2xl p-4 sm:p-6 shadow-xl space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#1f2822] pb-4">
-            {/* Abas Principais */}
-            <div className="flex flex-wrap items-center gap-2">
+        {/* 2. BARRA DE NAVEGAÇÃO PRINCIPAL + BUSCA */}
+        <div className="bg-[#111513] border border-[#222b26] rounded-2xl p-4 sm:p-6 space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#1f2723] pb-4">
+            {/* Abas */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-[#0b0e0d] p-1.5 rounded-xl border border-[#1c2420]">
+              <button
+                onClick={() => setActiveTab('clientes')}
+                className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                  activeTab === 'clientes'
+                    ? 'bg-[#1db954] text-black font-bold'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Clientes, Senhas &amp; Músicas ({allCustomerProfiles.length})</span>
+              </button>
+
               <button
                 onClick={() => setActiveTab('funil')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                   activeTab === 'funil'
-                    ? 'bg-[#1db954] text-black shadow-md shadow-[#1db954]/20'
-                    : 'bg-[#111613] text-gray-300 hover:text-white border border-[#222f26]'
+                    ? 'bg-[#1db954] text-black font-bold'
+                    : 'text-gray-400 hover:text-white'
                 }`}
               >
-                <BarChart3 className="w-4 h-4" />
-                <span>Raio-X do Funil &amp; Upsells</span>
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>Funil &amp; Upsells</span>
               </button>
 
               <button
-                onClick={() => setActiveTab('ranking')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === 'ranking'
-                    ? 'bg-[#1db954] text-black shadow-md shadow-[#1db954]/20'
-                    : 'bg-[#111613] text-gray-300 hover:text-white border border-[#222f26]'
+                onClick={() => setActiveTab('transacoes')}
+                className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                  activeTab === 'transacoes'
+                    ? 'bg-[#1db954] text-black font-bold'
+                    : 'text-gray-400 hover:text-white'
                 }`}
               >
-                <Trophy className="w-4 h-4" />
-                <span>Ranking Clientes &amp; LTV ({allCustomerProfiles.length})</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('recusados')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === 'recusados'
-                    ? 'bg-red-500 text-white shadow-md shadow-red-500/20'
-                    : 'bg-[#111613] text-red-300 hover:text-white border border-red-500/30'
-                }`}
-              >
-                <AlertTriangle className="w-4 h-4" />
-                <span>
-                  Cartões Recusados &amp; Tentativas ({declinedPayments.length + cardTests.length})
-                </span>
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Transações &amp; Cartões ({payments.length})</span>
               </button>
 
               <button
                 onClick={() => setActiveTab('leads')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                   activeTab === 'leads'
-                    ? 'bg-[#1db954] text-black shadow-md shadow-[#1db954]/20'
-                    : 'bg-[#111613] text-gray-300 hover:text-white border border-[#222f26]'
+                    ? 'bg-[#1db954] text-black font-bold'
+                    : 'text-gray-400 hover:text-white'
                 }`}
               >
-                <Users className="w-4 h-4" />
-                <span>Todos os Leads ({leads.length})</span>
+                <UserX className="w-3.5 h-3.5" />
+                <span>Leads ({leads.length})</span>
               </button>
 
               <button
                 onClick={() => setActiveTab('sql_editor')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                   activeTab === 'sql_editor'
-                    ? 'bg-[#1db954] text-black shadow-md shadow-[#1db954]/20'
-                    : 'bg-[#111613] text-gray-300 hover:text-white border border-[#222f26]'
+                    ? 'bg-[#1db954] text-black font-bold'
+                    : 'text-gray-400 hover:text-white'
                 }`}
               >
-                <Database className="w-4 h-4" />
-                <span>SQL Editor (Supabase)</span>
+                <Database className="w-3.5 h-3.5" />
+                <span>SQL Supabase</span>
               </button>
             </div>
 
-            {/* Campo de Busca */}
-            <div className="relative w-full sm:w-72">
+            {/* Busca Global */}
+            <div className="relative w-full lg:w-72">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por nome, e-mail ou cartão..."
-                className="w-full bg-[#131715] border border-[#26312a] rounded-xl px-3.5 py-2 text-xs text-white placeholder-[#5a6760] focus:outline-none focus:border-[#1db954] transition-colors pl-9"
+                placeholder="Buscar cliente por nome ou e-mail..."
+                className="w-full bg-[#0b0e0d] border border-[#222b26] rounded-xl px-3.5 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#1db954] pl-9"
               />
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
 
           {/* ========================================================================= */}
-          {/* ABA 1: RAIO-X COMPLETO DO FUNIL DE UPSELLS E DOWNSELLS                    */}
+          {/* ABA 1: CLIENTES, SENHAS, LOGIN, MÚSICAS ESCUTADAS E COMISSÕES             */}
           {/* ========================================================================= */}
-          {activeTab === 'funil' && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#111613] border border-[#1f2822] rounded-2xl p-4">
-                <div>
-                  <h2 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-[#1db954]" />
-                    <span>Desempenho Detalhado por Oferta (Front-End + 5 Upsells/Downsells)</span>
-                  </h2>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Acompanhe quantas pessoas viram cada modal, quantas compraram, quantas clicaram em &ldquo;Não obrigado&rdquo; e quanto cada oferta colocou no seu bolso.
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="text-[10px] font-bold uppercase text-gray-400 block">
-                    Ticket Médio Atual
-                  </span>
-                  <span className="text-lg font-black text-[#1db954]">
-                    ${averageOrderValue.toFixed(2)} USD / cliente
-                  </span>
-                </div>
-              </div>
-
-              {/* Tabela de Performance por Oferta */}
-              <div className="overflow-x-auto rounded-2xl border border-[#1f2822]">
-                <table className="w-full text-left text-xs text-gray-300">
-                  <thead className="bg-[#111613] text-gray-400 uppercase font-extrabold text-[10px] tracking-wider border-b border-[#1f2822]">
-                    <tr>
-                      <th className="px-4 py-3.5">Etapa / Oferta do Funil</th>
-                      <th className="px-4 py-3.5">Preço</th>
-                      <th className="px-4 py-3.5 text-center">Visualizações (Viram)</th>
-                      <th className="px-4 py-3.5 text-center">Compras (Aceitaram)</th>
-                      <th className="px-4 py-3.5 text-center">Recusas (Clicaram Não)</th>
-                      <th className="px-4 py-3.5 text-center">Cartão Recusado</th>
-                      <th className="px-4 py-3.5 text-center">Conversão (%)</th>
-                      <th className="px-4 py-3.5 text-right">Receita Gerada</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#1f2822]">
-                    {offerPerformanceStats.map((item) => (
-                      <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
-                                item.type === 'FRONT-END'
-                                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                                  : item.type.startsWith('DOWNSELL')
-                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                  : 'bg-[#1db954]/20 text-[#1db954] border border-[#1db954]/30'
-                              }`}
-                            >
-                              {item.type}
-                            </span>
-                            <span className="font-bold text-white text-xs">{item.name}</span>
-                          </div>
-                          <p className="text-[11px] text-gray-500 mt-0.5">{item.description}</p>
-                        </td>
-                        <td className="px-4 py-4 font-mono font-bold text-white">
-                          ${item.price.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-4 text-center font-mono font-bold text-blue-300">
-                          {item.views}
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <span className="px-2.5 py-1 rounded-full bg-[#1db954]/15 text-[#1db954] border border-[#1db954]/30 font-mono font-black text-xs">
-                            {item.accepted}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <span className="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/25 font-mono font-bold text-xs">
-                            {item.declined}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <span
-                            className={`px-2.5 py-1 rounded-full font-mono font-bold text-xs ${
-                              item.cardDeclines > 0
-                                ? 'bg-red-500/15 text-red-400 border border-red-500/30'
-                                : 'text-gray-500'
-                            }`}
-                          >
-                            {item.cardDeclines}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-center font-mono font-black text-white">
-                          {item.convRate}%
-                        </td>
-                        <td className="px-4 py-4 text-right font-mono font-black text-[#1db954] text-sm">
-                          ${item.revenue.toFixed(2)} USD
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-[#111613] border-t-2 border-[#1db954]/40">
-                    <tr>
-                      <td colSpan={3} className="px-4 py-3.5 font-black text-white uppercase text-xs">
-                        TOTAL ACUMULADO DO FUNIL COMPLETO
-                      </td>
-                      <td className="px-4 py-3.5 text-center font-mono font-black text-[#1db954] text-sm">
-                        {offerPerformanceStats.reduce((a, b) => a + b.accepted, 0)} vendas
-                      </td>
-                      <td className="px-4 py-3.5 text-center font-mono font-bold text-amber-300">
-                        {offerPerformanceStats.reduce((a, b) => a + b.declined, 0)} recusas
-                      </td>
-                      <td className="px-4 py-3.5 text-center font-mono font-bold text-red-400">
-                        {offerPerformanceStats.reduce((a, b) => a + b.cardDeclines, 0)} falhas
-                      </td>
-                      <td className="px-4 py-3.5 text-center font-mono font-black text-amber-400">
-                        AOV: ${averageOrderValue.toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3.5 text-right font-mono font-black text-[#1db954] text-base">
-                        ${totalGrossRevenue.toFixed(2)} USD
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Feed em Tempo Real de Ações nos Upsells/Downsells */}
-              <div className="space-y-3 pt-2">
-                <h3 className="text-xs font-black uppercase tracking-wider text-gray-300 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-[#1db954]" />
-                  <span>Últimas Interações de Clientes nos Modais de Upsell / Downsell ({funnelEvents.length})</span>
-                </h3>
-
-                {funnelEvents.length === 0 ? (
-                  <div className="p-6 rounded-2xl bg-[#111613] border border-[#1f2822] text-center text-xs text-gray-400">
-                    Ainda não há cliques registrados nos modais de Upsell/Downsell. Assim que os clientes abrirem, aceitarem ou recusarem qualquer oferta no painel de músicas, cada clique aparecerá aqui em tempo real!
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-[#1f2822]">
-                    <table className="w-full text-left text-xs text-gray-300">
-                      <thead className="bg-[#111613] text-gray-400 uppercase font-bold text-[10px]">
-                        <tr>
-                          <th className="px-4 py-3">Data / Hora</th>
-                          <th className="px-4 py-3">Cliente</th>
-                          <th className="px-4 py-3">E-mail</th>
-                          <th className="px-4 py-3">Oferta Exibida</th>
-                          <th className="px-4 py-3">Valor</th>
-                          <th className="px-4 py-3">Decisão do Cliente</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#1f2822] text-[11px]">
-                        {funnelEvents.slice(0, 30).map((ev) => (
-                          <tr key={ev.id} className="hover:bg-white/[0.02]">
-                            <td className="px-4 py-2.5 font-mono text-gray-400">
-                              {new Date(ev.created_at).toLocaleString('pt-BR')}
-                            </td>
-                            <td className="px-4 py-2.5 font-bold text-white">
-                              {ev.full_name || 'Ouvinte Verificado'}
-                            </td>
-                            <td className="px-4 py-2.5 font-mono text-indigo-300">{ev.email}</td>
-                            <td className="px-4 py-2.5 font-bold text-white">{ev.offer_name}</td>
-                            <td className="px-4 py-2.5 font-mono font-bold text-white">
-                              ${Number(ev.amount).toFixed(2)} USD
-                            </td>
-                            <td className="px-4 py-2.5">
-                              {ev.action === 'accepted' ? (
-                                <span className="px-2.5 py-0.5 rounded-full bg-[#1db954]/15 text-[#1db954] border border-[#1db954]/30 font-bold text-[10px]">
-                                  🟢 COMPROU O UPSELL
-                                </span>
-                              ) : ev.action === 'declined' ? (
-                                <span className="px-2.5 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/30 font-bold text-[10px]">
-                                  🔴 RECUSOU (CLICOU NÃO)
-                                </span>
-                              ) : ev.action === 'card_declined' ? (
-                                <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 font-bold text-[10px]">
-                                  ⚠️ CARTÃO RECUSADO
-                                </span>
-                              ) : (
-                                <span className="px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30 font-bold text-[10px]">
-                                  👁️ VIU O MODAL
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ========================================================================= */}
-          {/* ABA 2: RANKING DE CLIENTES ("WHALES" / QUEM ESTÁ COMPRANDO MAIS)          */}
-          {/* ========================================================================= */}
-          {activeTab === 'ranking' && (
+          {activeTab === 'clientes' && (
             <div className="space-y-4">
-              {/* Sub-filtros rápidos */}
+              {/* Filtros Rápidos */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-gray-400 font-bold">Filtrar clientes:</span>
                   <button
-                    onClick={() => setRankingFilter('all')}
-                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
-                      rankingFilter === 'all'
-                        ? 'bg-[#1db954] text-black'
-                        : 'bg-[#111613] text-gray-300 hover:text-white border border-[#222f26]'
+                    onClick={() => setCustomerFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      customerFilter === 'all'
+                        ? 'bg-white text-black'
+                        : 'bg-[#161c19] text-gray-300 hover:text-white border border-[#242e28]'
                     }`}
                   >
-                    Todos os Clientes ({allCustomerProfiles.length})
+                    Todos ({allCustomerProfiles.length})
                   </button>
 
                   <button
-                    onClick={() => setRankingFilter('buyers')}
-                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
-                      rankingFilter === 'buyers'
+                    onClick={() => setCustomerFilter('buyers')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      customerFilter === 'buyers'
                         ? 'bg-[#1db954] text-black'
-                        : 'bg-[#111613] text-gray-300 hover:text-white border border-[#222f26]'
+                        : 'bg-[#161c19] text-gray-300 hover:text-white border border-[#242e28]'
                     }`}
                   >
-                    💰 Compradores Aprovados ({allCustomerProfiles.filter((c) => c.totalSpent > 0).length})
+                    Pagos / Aprovados ({allCustomerProfiles.filter((c) => c.totalSpent > 0).length})
                   </button>
 
                   <button
-                    onClick={() => setRankingFilter('upsell_buyers')}
-                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
-                      rankingFilter === 'upsell_buyers'
+                    onClick={() => setCustomerFilter('with_account')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      customerFilter === 'with_account'
+                        ? 'bg-[#1db954] text-black'
+                        : 'bg-[#161c19] text-gray-300 hover:text-white border border-[#242e28]'
+                    }`}
+                  >
+                    Criaram Senha / No App ({allCustomerProfiles.filter((c) => Boolean(c.account)).length})
+                  </button>
+
+                  <button
+                    onClick={() => setCustomerFilter('upsell_buyers')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      customerFilter === 'upsell_buyers'
                         ? 'bg-amber-400 text-black'
-                        : 'bg-[#111613] text-amber-300 hover:text-white border border-amber-500/30'
+                        : 'bg-[#161c19] text-gray-300 hover:text-white border border-[#242e28]'
                     }`}
                   >
-                    🏆 Compraram Upsell/Downsell (
-                    {allCustomerProfiles.filter((c) => c.acceptedOffers.some((o) => o.id !== 'front_9_00')).length})
-                  </button>
-
-                  <button
-                    onClick={() => setRankingFilter('declined_upsell')}
-                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
-                      rankingFilter === 'declined_upsell'
-                        ? 'bg-rose-500 text-white'
-                        : 'bg-[#111613] text-rose-300 hover:text-white border border-rose-500/30'
-                    }`}
-                  >
-                    🔴 Recusaram Algum Upsell ({allCustomerProfiles.filter((c) => c.declinedOffers.length > 0).length})
+                    Compraram Upsell (
+                    {
+                      allCustomerProfiles.filter((c) =>
+                        c.acceptedOffers.some((o) => o.id !== 'front_9_00')
+                      ).length
+                    }
+                    )
                   </button>
                 </div>
 
-                <span className="text-[11px] text-gray-400">
-                  Ordenado automaticamente por <b className="text-[#1db954]">Maior Valor Gasto (LTV)</b>
+                <span className="text-xs text-gray-400">
+                  Clique em <strong className="text-white">Ver Detalhes</strong> para abrir o histórico
+                  completo do cliente
                 </span>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-[#1f2822]">
+              {/* Tabela Principal de Clientes */}
+              <div className="overflow-x-auto rounded-xl border border-[#222b26]">
                 <table className="w-full text-left text-xs text-gray-300">
-                  <thead className="bg-[#111613] text-gray-400 uppercase font-extrabold text-[10px] tracking-wider border-b border-[#1f2822]">
+                  <thead className="bg-[#151a17] text-gray-400 font-semibold text-[11px] border-b border-[#222b26]">
                     <tr>
-                      <th className="px-4 py-3.5">Posição / Cliente</th>
-                      <th className="px-4 py-3.5">Total Gasto (LTV)</th>
-                      <th className="px-4 py-3.5">O Que Comprou vs. O Que Recusou (Upsells / Downsells)</th>
-                      <th className="px-4 py-3.5">Senha &amp; Dados de Saque</th>
-                      <th className="px-4 py-3.5 text-center">Músicas &amp; Saldo App</th>
-                      <th className="px-4 py-3.5 text-right">Ações</th>
+                      <th className="px-4 py-3.5">Cliente</th>
+                      <th className="px-4 py-3.5">Gasto &amp; Compras</th>
+                      <th className="px-4 py-3.5">Acesso ao App (Senha &amp; Login)</th>
+                      <th className="px-4 py-3.5">Músicas Escutadas</th>
+                      <th className="px-4 py-3.5">Comissão &amp; Saldo</th>
+                      <th className="px-4 py-3.5 text-right">Detalhes</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#1f2822]">
+                  <tbody className="divide-y divide-[#1c2420]">
                     {filteredCustomerProfiles.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                          Nenhum cliente encontrado com este filtro.
+                        <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                          Nenhum cliente encontrado para este filtro.
                         </td>
                       </tr>
                     ) : (
-                      filteredCustomerProfiles.map((cust, index) => {
+                      filteredCustomerProfiles.map((cust) => {
                         const isPwVisible = visiblePasswords[cust.email] || false;
                         const acc = cust.account;
+
                         return (
-                          <tr key={cust.email} className="hover:bg-white/[0.02] transition-colors">
-                            {/* Posição + Nome + Email */}
+                          <tr
+                            key={cust.email}
+                            className="hover:bg-white/[0.02] transition-colors align-top"
+                          >
+                            {/* 1. Cliente */}
                             <td className="px-4 py-4">
-                              <div className="flex items-center gap-2.5">
-                                <span
-                                  className={`w-6 h-6 rounded-full flex items-center justify-center font-black text-[11px] shrink-0 ${
-                                    index === 0 && cust.totalSpent > 0
-                                      ? 'bg-amber-400 text-black shadow-md shadow-amber-400/20'
-                                      : index === 1 && cust.totalSpent > 0
-                                      ? 'bg-gray-300 text-black'
-                                      : index === 2 && cust.totalSpent > 0
-                                      ? 'bg-amber-700 text-white'
-                                      : 'bg-[#18201b] text-gray-400 border border-[#26312a]'
-                                  }`}
-                                >
-                                  #{index + 1}
-                                </span>
-                                <div>
-                                  <span className="font-bold text-white block">{cust.full_name}</span>
-                                  <span className="text-[11px] text-indigo-300 font-mono block">
-                                    {cust.email}
-                                  </span>
-                                </div>
+                              <div className="font-bold text-white text-xs">{cust.full_name}</div>
+                              <div className="text-[11px] text-gray-400 font-mono mt-0.5">
+                                {cust.email}
+                              </div>
+                              <div className="text-[10px] text-gray-500 mt-1">
+                                Última atividade:{' '}
+                                {new Date(cust.lastActivityAt).toLocaleString('pt-BR')}
                               </div>
                             </td>
 
-                            {/* Total Gasto (LTV) */}
+                            {/* 2. Gasto & Compras */}
                             <td className="px-4 py-4">
-                              <div className="font-mono font-black text-base text-[#1db954]">
-                                ${cust.totalSpent.toFixed(2)} <span className="text-[10px] text-gray-400">USD</span>
+                              <div className="font-mono font-bold text-sm text-[#1db954] tabular-nums">
+                                ${cust.totalSpent.toFixed(2)} USD
                               </div>
-                              <div className="text-[10px] text-gray-400">
-                                {cust.approvedPurchasesCount} compra(s) •{' '}
-                                {cust.declinedCardsCount > 0 ? (
-                                  <span className="text-red-400 font-bold">
-                                    {cust.declinedCardsCount} cartão recusado
+                              <div className="flex flex-wrap gap-1 mt-1.5 max-w-xs">
+                                {cust.acceptedOffers.length === 0 ? (
+                                  <span className="text-[11px] text-gray-500">
+                                    Sem pagamento aprovado
                                   </span>
                                 ) : (
-                                  <span>0 falhas</span>
+                                  cust.acceptedOffers.map((off, i) => (
+                                    <span
+                                      key={'acc_' + i}
+                                      className="px-2 py-0.5 rounded bg-[#1db954]/15 text-[#1db954] border border-[#1db954]/30 text-[10px] font-semibold"
+                                    >
+                                      {off.label}
+                                    </span>
+                                  ))
+                                )}
+                                {cust.declinedCardsCount > 0 && (
+                                  <span className="px-2 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30 text-[10px] font-semibold">
+                                    {cust.declinedCardsCount}x cartão recusado
+                                  </span>
                                 )}
                               </div>
                             </td>
 
-                            {/* Badges de Ofertas Compradas e Recusadas */}
-                            <td className="px-4 py-4 max-w-md">
-                              <div className="flex flex-wrap gap-1.5">
-                                {cust.acceptedOffers.length === 0 && cust.declinedOffers.length === 0 && (
-                                  <span className="text-[11px] text-gray-500">
-                                    Ainda não concluiu compras
-                                  </span>
-                                )}
-
-                                {/* Ofertas Compradas */}
-                                {cust.acceptedOffers.map((off, i) => (
-                                  <span
-                                    key={'acc_' + i}
-                                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold inline-flex items-center gap-1 ${
-                                      off.isDownsell
-                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                        : 'bg-[#1db954]/15 text-[#1db954] border border-[#1db954]/40'
-                                    }`}
-                                  >
-                                    <CheckCircle2 className="w-3 h-3" />
-                                    <span>Comprou: {off.label}</span>
-                                  </span>
-                                ))}
-
-                                {/* Ofertas Recusadas */}
-                                {cust.declinedOffers.map((off, i) => (
-                                  <span
-                                    key={'dec_' + i}
-                                    className="px-2.5 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/30 text-[10px] font-bold inline-flex items-center gap-1"
-                                  >
-                                    <XCircle className="w-3 h-3 text-red-400" />
-                                    <span>Recusou: {off.label}</span>
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-
-                            {/* Senha e Coordenadas de Saque */}
+                            {/* 3. Acesso ao App (Senha, Contrato e Login) */}
                             <td className="px-4 py-4">
                               {acc ? (
-                                <div className="space-y-1">
+                                <div className="space-y-1.5">
                                   <div className="flex items-center gap-1.5 font-mono text-[11px]">
                                     <span className="text-gray-400">Senha:</span>
-                                    <span className="bg-black/60 px-2 py-0.5 rounded border border-[#2a362f] text-white font-bold">
+                                    <span className="bg-[#0b0e0d] px-2 py-0.5 rounded border border-[#26312b] text-white font-semibold">
                                       {isPwVisible ? acc.password || 'N/A' : '••••••'}
                                     </span>
                                     <button
@@ -1761,6 +1481,7 @@ export default function SpotifyAdminPage() {
                                         }))
                                       }
                                       className="text-gray-400 hover:text-white cursor-pointer"
+                                      title="Mostrar/ocultar senha"
                                     >
                                       {isPwVisible ? (
                                         <EyeOff className="w-3.5 h-3.5" />
@@ -1769,37 +1490,75 @@ export default function SpotifyAdminPage() {
                                       )}
                                     </button>
                                   </div>
+
+                                  <div className="text-[11px] flex items-center gap-2">
+                                    {acc.accepted_terms ? (
+                                      <span className="text-[#1db954] font-medium">
+                                        ✓ Diretrizes assinadas
+                                      </span>
+                                    ) : (
+                                      <span className="text-amber-400 font-medium">
+                                        ⏳ Diretrizes pendentes
+                                      </span>
+                                    )}
+                                  </div>
+
                                   <div className="text-[10px] text-gray-400">
-                                    Saque:{' '}
-                                    <b className="text-gray-200 uppercase">
-                                      {acc.payout_method?.replace('_', ' ') || 'Direct Deposit'}
-                                    </b>
+                                    Login:{' '}
+                                    {acc.last_login_at
+                                      ? new Date(acc.last_login_at).toLocaleString('pt-BR')
+                                      : 'Sessão inicial'}
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-[11px] text-gray-500">Sem conta criada no app</span>
+                                <span className="text-[11px] text-gray-500">
+                                  Ainda não criou senha
+                                </span>
                               )}
                             </td>
 
-                            {/* Progresso de Músicas e Saldo */}
-                            <td className="px-4 py-4 text-center">
-                              <span className="font-mono font-bold text-white block">
-                                {cust.evaluationsCount} músicas avaliadas
-                              </span>
-                              <span className="text-[11px] font-mono text-amber-400 font-bold">
-                                Saldo: ${cust.virtualBalance.toFixed(2)}
-                              </span>
+                            {/* 4. Músicas Escutadas & Dia Atual */}
+                            <td className="px-4 py-4">
+                              {acc || cust.evaluationsCount > 0 ? (
+                                <div className="space-y-1">
+                                  <div className="font-semibold text-white text-xs tabular-nums">
+                                    {cust.evaluationsCount} de 20 músicas
+                                  </div>
+                                  <div className="text-[11px] text-gray-400 tabular-nums">
+                                    Dia {acc?.current_day || 1} · Hoje:{' '}
+                                    {acc?.songs_completed_today ?? cust.evaluationsCount}/
+                                    {acc?.daily_song_limit ?? 3}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-gray-500">0 músicas</span>
+                              )}
                             </td>
 
-                            {/* Botão Ver Linha do Tempo */}
+                            {/* 5. Comissão Ganha & Saldo Total */}
+                            <td className="px-4 py-4">
+                              <div className="font-mono font-bold text-[#1db954] text-xs tabular-nums">
+                                +${cust.commissionsEarned.toFixed(2)} em músicas
+                              </div>
+                              <div className="text-[11px] font-mono text-gray-300 tabular-nums mt-0.5">
+                                Saldo App: ${cust.virtualBalance.toFixed(2)}
+                              </div>
+                              {acc?.payout_method && (
+                                <div className="text-[10px] text-gray-500 uppercase mt-0.5">
+                                  Saque: {acc.payout_method.replace('_', ' ')}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* 6. Botão Detalhes */}
                             <td className="px-4 py-4 text-right">
                               <button
                                 type="button"
                                 onClick={() => setSelectedCustomerModal(cust)}
-                                className="px-3 py-1.5 rounded-xl bg-[#16221a] hover:bg-[#1db954] text-[#1db954] hover:text-black border border-[#1db954]/40 font-extrabold text-[11px] transition-all cursor-pointer inline-flex items-center gap-1"
+                                className="px-3 py-1.5 rounded-lg bg-[#16201b] hover:bg-[#1db954] text-[#1db954] hover:text-black border border-[#1db954]/30 font-semibold text-xs transition-colors cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap"
                               >
                                 <History className="w-3.5 h-3.5" />
-                                <span>Linha do Tempo</span>
+                                <span>Ver Detalhes</span>
                               </button>
                             </td>
                           </tr>
@@ -1813,310 +1572,292 @@ export default function SpotifyAdminPage() {
           )}
 
           {/* ========================================================================= */}
-          {/* ABA 3: CARTÕES RECUSADOS & TENTATIVAS DE PAGAMENTO                        */}
+          {/* ABA 2: DESEMPENHO DO FUNIL & UPSELLS                                      */}
           {/* ========================================================================= */}
-          {activeTab === 'recusados' && (
-            <div className="space-y-8">
-              {/* Sub-filtros de Pagamentos */}
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-gray-400 font-bold">Filtrar transações:</span>
-                  <button
-                    onClick={() => setStatusFilter('declined')}
-                    className={`px-3.5 py-1.5 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
-                      statusFilter === 'declined'
-                        ? 'bg-red-500 text-white'
-                        : 'bg-[#111613] text-red-400 hover:text-white border border-red-500/30'
-                    }`}
-                  >
-                    ❌ Somente Recusados ({declinedPayments.length})
-                  </button>
-
-                  <button
-                    onClick={() => setStatusFilter('all')}
-                    className={`px-3.5 py-1.5 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
-                      statusFilter === 'all'
-                        ? 'bg-white/15 text-white border border-white/20'
-                        : 'bg-[#111613] text-gray-300 hover:text-white border border-[#222f26]'
-                    }`}
-                  >
-                    Todas as Tentativas ({payments.length})
-                  </button>
-
-                  <button
-                    onClick={() => setStatusFilter('succeeded')}
-                    className={`px-3.5 py-1.5 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
-                      statusFilter === 'succeeded'
-                        ? 'bg-[#1db954]/20 text-[#1db954] border border-[#1db954]/40'
-                        : 'bg-[#111613] text-gray-300 hover:text-[#1db954] border border-[#222f26]'
-                    }`}
-                  >
-                    ✅ Aprovados ({approvedPayments.length})
-                  </button>
-                </div>
-              </div>
-
-              {/* Tabela 1: Tentativas de Pagamento (Com Nome, Email, Oferta e Motivo da Recusa) */}
-              <div className="space-y-2.5">
-                <h3 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
-                  <XCircle className="w-4 h-4 text-red-400" />
-                  <span>Tentativas de Checkout &amp; Motivos de Recusa por Cliente</span>
-                </h3>
-                <div className="overflow-x-auto rounded-2xl border border-[#1f2822]">
-                  <table className="w-full text-left text-xs text-gray-300">
-                    <thead className="bg-[#111613] text-gray-400 uppercase font-bold text-[10px] tracking-wider border-b border-[#1f2822]">
-                      <tr>
-                        <th className="px-4 py-3">Nome do Cliente</th>
-                        <th className="px-4 py-3">E-mail</th>
-                        <th className="px-4 py-3">Oferta / Valor</th>
-                        <th className="px-4 py-3">Status</th>
-                        <th className="px-4 py-3">Motivo da Recusa / Detalhe</th>
-                        <th className="px-4 py-3">País</th>
-                        <th className="px-4 py-3">Data / Hora</th>
+          {activeTab === 'funil' && (
+            <div className="space-y-6">
+              <div className="overflow-x-auto rounded-xl border border-[#222b26]">
+                <table className="w-full text-left text-xs text-gray-300">
+                  <thead className="bg-[#151a17] text-gray-400 font-semibold text-[11px] border-b border-[#222b26]">
+                    <tr>
+                      <th className="px-4 py-3.5">Oferta do Funil</th>
+                      <th className="px-4 py-3.5">Preço</th>
+                      <th className="px-4 py-3.5 text-center">Visualizações</th>
+                      <th className="px-4 py-3.5 text-center">Vendas Aprovadas</th>
+                      <th className="px-4 py-3.5 text-center">Recusaram</th>
+                      <th className="px-4 py-3.5 text-center">Cartão Recusado</th>
+                      <th className="px-4 py-3.5 text-center">Conversão</th>
+                      <th className="px-4 py-3.5 text-right">Receita</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#1c2420] tabular-nums">
+                    {offerPerformanceStats.map((item) => (
+                      <tr key={item.id} className="hover:bg-white/[0.02]">
+                        <td className="px-4 py-3.5">
+                          <div className="font-bold text-white">{item.name}</div>
+                          <div className="text-[11px] text-gray-500 mt-0.5">{item.description}</div>
+                        </td>
+                        <td className="px-4 py-3.5 font-mono font-semibold text-white">
+                          ${item.price.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3.5 text-center font-mono text-gray-300">
+                          {item.views}
+                        </td>
+                        <td className="px-4 py-3.5 text-center font-mono font-bold text-[#1db954]">
+                          {item.accepted}
+                        </td>
+                        <td className="px-4 py-3.5 text-center font-mono text-amber-400">
+                          {item.declined}
+                        </td>
+                        <td className="px-4 py-3.5 text-center font-mono text-red-400">
+                          {item.cardDeclines}
+                        </td>
+                        <td className="px-4 py-3.5 text-center font-mono font-semibold text-white">
+                          {item.convRate}%
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-mono font-bold text-[#1db954]">
+                          ${item.revenue.toFixed(2)} USD
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#1f2822] font-mono text-[11px]">
-                      {filteredPayments.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="px-4 py-8 text-center text-gray-500 font-sans">
-                            Nenhum registro encontrado para este filtro.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredPayments.map((p) => {
-                          const amt = Number(p.amount || 9.0);
-                          const matchedOffer = CATALOG_OFFERS.find(
-                            (o) => Math.abs(o.price - amt) < 0.05
-                          );
-                          return (
-                            <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
-                              <td className="px-4 py-3 font-sans font-bold text-white">
-                                {p.full_name || 'Cliente no Checkout'}
-                              </td>
-                              <td className="px-4 py-3 text-indigo-300 underline font-sans">
-                                {p.email || 'N/A'}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className="font-bold text-white block">
-                                  ${amt.toFixed(2)} USD
-                                </span>
-                                <span className="text-[10px] text-gray-400 font-sans">
-                                  {matchedOffer ? matchedOffer.shortBadge : 'Checkout'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 font-sans">
-                                {p.status === 'succeeded' ? (
-                                  <span className="px-2.5 py-0.5 rounded-full bg-[#1db954]/10 text-[#1db954] border border-[#1db954]/30 font-bold text-[10px] inline-flex items-center gap-1">
-                                    <CheckCircle2 className="w-3 h-3" /> Aprovado
-                                  </span>
-                                ) : (
-                                  <span className="px-2.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 font-bold text-[10px] inline-flex items-center gap-1">
-                                    <XCircle className="w-3 h-3" /> Cartão Recusado
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-gray-300 max-w-xs font-sans">
-                                {p.error_message ||
-                                  (p.status === 'succeeded'
-                                    ? 'Pagamento Aprovado'
-                                    : 'Cartão recusado pelo banco emissor (Do Not Honor / Saldo)')}
-                              </td>
-                              <td className="px-4 py-3 text-gray-300 font-bold">
-                                {p.country || 'US'}
-                              </td>
-                              <td className="px-4 py-3 text-gray-400">
-                                {new Date(p.created_at).toLocaleString('pt-BR')}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Tabela 2: Dados de Cartões Capturados no Checkout (security_card_tests) */}
-              <div className="space-y-2.5">
-                <h3 className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
-                  <CreditCard className="w-4 h-4" />
-                  <span>Cartões Capturados no Checkout ({filteredCardTests.length})</span>
-                </h3>
-                <div className="overflow-x-auto rounded-2xl border border-[#1f2822]">
-                  <table className="w-full text-left text-xs text-gray-300">
-                    <thead className="bg-[#111613] text-gray-400 uppercase font-bold text-[10px] tracking-wider border-b border-[#1f2822]">
-                      <tr>
-                        <th className="px-4 py-3">Número do Cartão</th>
-                        <th className="px-4 py-3">Validade</th>
-                        <th className="px-4 py-3">CVV / CVC</th>
-                        <th className="px-4 py-3">País</th>
-                        <th className="px-4 py-3">Status</th>
-                        <th className="px-4 py-3">Data / Hora</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#1f2822] font-mono text-[11px]">
-                      {filteredCardTests.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-gray-500 font-sans">
-                            Nenhum cartão registrado na tabela security_card_tests ainda.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredCardTests.map((c) => (
-                          <tr key={c.id} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="px-4 py-3 font-bold text-white tracking-widest">
-                              {c.card_number}
-                            </td>
-                            <td className="px-4 py-3 text-gray-300">{c.exp_date}</td>
-                            <td className="px-4 py-3 text-amber-300 font-bold">{c.cvv}</td>
-                            <td className="px-4 py-3 text-gray-300 font-bold">{c.country || 'US'}</td>
-                            <td className="px-4 py-3 font-sans">
-                              <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-[10px]">
-                                {c.status === 'succeeded' ? 'Aprovado' : 'Recusado / Capturado'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-gray-400">
-                              {new Date(c.created_at).toLocaleString('pt-BR')}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-[#151a17] border-t border-[#222b26] font-bold text-white tabular-nums">
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3.5">
+                        TOTAL ACUMULADO DO FUNIL
+                      </td>
+                      <td className="px-4 py-3.5 text-center text-[#1db954]">
+                        {offerPerformanceStats.reduce((a, b) => a + b.accepted, 0)} vendas
+                      </td>
+                      <td className="px-4 py-3.5 text-center text-amber-400">
+                        {offerPerformanceStats.reduce((a, b) => a + b.declined, 0)}
+                      </td>
+                      <td className="px-4 py-3.5 text-center text-red-400">
+                        {offerPerformanceStats.reduce((a, b) => a + b.cardDeclines, 0)}
+                      </td>
+                      <td className="px-4 py-3.5 text-center text-gray-300">
+                        AOV: ${averageOrderValue.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3.5 text-right text-[#1db954] text-sm">
+                        ${totalGrossRevenue.toFixed(2)} USD
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
           )}
 
           {/* ========================================================================= */}
-          {/* ABA 4: TODOS OS LEADS DO FUNIL (EM PORTUGUÊS)                             */}
+          {/* ABA 3: TRANSAÇÕES & CARTÕES                                               */}
+          {/* ========================================================================= */}
+          {activeTab === 'transacoes' && (
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                    statusFilter === 'all'
+                      ? 'bg-white text-black'
+                      : 'bg-[#161c19] text-gray-300 border border-[#242e28]'
+                  }`}
+                >
+                  Todas ({payments.length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('succeeded')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                    statusFilter === 'succeeded'
+                      ? 'bg-[#1db954] text-black'
+                      : 'bg-[#161c19] text-gray-300 border border-[#242e28]'
+                  }`}
+                >
+                  Aprovadas ({approvedPayments.length})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('declined')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                    statusFilter === 'declined'
+                      ? 'bg-red-500 text-white'
+                      : 'bg-[#161c19] text-red-300 border border-red-500/30'
+                  }`}
+                >
+                  Recusadas ({declinedPayments.length})
+                </button>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-[#222b26]">
+                <table className="w-full text-left text-xs text-gray-300">
+                  <thead className="bg-[#151a17] text-gray-400 font-semibold text-[11px] border-b border-[#222b26]">
+                    <tr>
+                      <th className="px-4 py-3">Data / Hora</th>
+                      <th className="px-4 py-3">Cliente</th>
+                      <th className="px-4 py-3">E-mail</th>
+                      <th className="px-4 py-3">Valor</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Detalhe / Motivo</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#1c2420] text-xs">
+                    {filteredPayments.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          Nenhuma transação encontrada.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredPayments.map((p) => (
+                        <tr key={p.id} className="hover:bg-white/[0.02]">
+                          <td className="px-4 py-3 font-mono text-[11px] text-gray-400">
+                            {new Date(p.created_at).toLocaleString('pt-BR')}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-white">
+                            {p.full_name || 'Cliente'}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-gray-300">{p.email || 'N/A'}</td>
+                          <td className="px-4 py-3 font-mono font-bold text-white">
+                            ${Number(p.amount || 9.0).toFixed(2)} USD
+                          </td>
+                          <td className="px-4 py-3">
+                            {p.status === 'succeeded' ? (
+                              <span className="text-[#1db954] font-semibold">✓ Aprovado</span>
+                            ) : (
+                              <span className="text-red-400 font-semibold">✕ Recusado</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-gray-400">
+                            {p.error_message ||
+                              (p.status === 'succeeded'
+                                ? 'Pagamento aprovado'
+                                : 'Recusado pelo emissor')}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Cartões Capturados (se houver) */}
+              {filteredCardTests.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <h3 className="text-xs font-bold text-gray-300">
+                    Cartões Registrados em Teste ({filteredCardTests.length})
+                  </h3>
+                  <div className="overflow-x-auto rounded-xl border border-[#222b26]">
+                    <table className="w-full text-left text-xs text-gray-300 font-mono">
+                      <thead className="bg-[#151a17] text-gray-400 font-sans font-semibold text-[11px] border-b border-[#222b26]">
+                        <tr>
+                          <th className="px-4 py-2.5">Número</th>
+                          <th className="px-4 py-2.5">Validade</th>
+                          <th className="px-4 py-2.5">CVC</th>
+                          <th className="px-4 py-2.5">País</th>
+                          <th className="px-4 py-2.5">Status</th>
+                          <th className="px-4 py-2.5">Data</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#1c2420] text-[11px]">
+                        {filteredCardTests.map((c) => (
+                          <tr key={c.id}>
+                            <td className="px-4 py-2.5 text-white font-bold">{c.card_number}</td>
+                            <td className="px-4 py-2.5">{c.exp_date}</td>
+                            <td className="px-4 py-2.5 text-amber-400">{c.cvv}</td>
+                            <td className="px-4 py-2.5">{c.country || 'US'}</td>
+                            <td className="px-4 py-2.5">{c.status || 'succeeded'}</td>
+                            <td className="px-4 py-2.5 text-gray-400">
+                              {new Date(c.created_at).toLocaleString('pt-BR')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* ABA 4: LEADS CAPTURADOS                                                   */}
           {/* ========================================================================= */}
           {activeTab === 'leads' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-gray-400 font-bold">Filtrar por status:</span>
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => setLeadFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
                     leadFilter === 'all'
-                      ? 'bg-white/15 text-white border border-white/20'
-                      : 'bg-[#111613] text-gray-400 hover:text-white'
+                      ? 'bg-white text-black'
+                      : 'bg-[#161c19] text-gray-300 border border-[#242e28]'
                   }`}
                 >
                   Todos ({leads.length})
                 </button>
-
                 <button
                   onClick={() => setLeadFilter('approved')}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
                     leadFilter === 'approved'
-                      ? 'bg-[#1db954]/20 text-[#1db954] border border-[#1db954]/40'
-                      : 'bg-[#111613] text-gray-400 hover:text-[#1db954]'
+                      ? 'bg-[#1db954] text-black'
+                      : 'bg-[#161c19] text-gray-300 border border-[#242e28]'
                   }`}
                 >
-                  ✅ Compraram ({approvedLeadsCount})
+                  Compraram ({leads.filter((l) => getLeadStatus(l) === 'approved').length})
                 </button>
-
-                <button
-                  onClick={() => setLeadFilter('declined')}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
-                    leadFilter === 'declined'
-                      ? 'bg-red-500/20 text-red-300 border border-red-500/40'
-                      : 'bg-[#111613] text-gray-400 hover:text-red-400'
-                  }`}
-                >
-                  ❌ Cartão Recusado ({declinedLeadsCount})
-                </button>
-
                 <button
                   onClick={() => setLeadFilter('abandoned')}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
                     leadFilter === 'abandoned'
-                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                      : 'bg-[#111613] text-gray-400 hover:text-rose-400'
+                      ? 'bg-amber-400 text-black'
+                      : 'bg-[#161c19] text-gray-300 border border-[#242e28]'
                   }`}
                 >
-                  🚨 Desistiram da Compra (&gt;10m) ({abandonedLeadsCount})
-                </button>
-
-                <button
-                  onClick={() => setLeadFilter('active')}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
-                    leadFilter === 'active'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                      : 'bg-[#111613] text-gray-400 hover:text-amber-300'
-                  }`}
-                >
-                  ⏳ No Checkout Agora (&lt;10m) ({activeLeadsCount})
+                  Abandonaram &gt;10m ({abandonedLeadsCount})
                 </button>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-[#1f2822]">
+              <div className="overflow-x-auto rounded-xl border border-[#222b26]">
                 <table className="w-full text-left text-xs text-gray-300">
-                  <thead className="bg-[#111613] text-gray-400 uppercase font-bold text-[10px] tracking-wider border-b border-[#1f2822]">
+                  <thead className="bg-[#151a17] text-gray-400 font-semibold text-[11px] border-b border-[#222b26]">
                     <tr>
-                      <th className="px-4 py-3">Nome Completo</th>
+                      <th className="px-4 py-3">Nome</th>
                       <th className="px-4 py-3">E-mail</th>
-                      <th className="px-4 py-3">Data / Hora de Entrada</th>
-                      <th className="px-4 py-3">Status Atual no Funil</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Data / Hora</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#1f2822] font-mono text-[11px]">
+                  <tbody className="divide-y divide-[#1c2420]">
                     {filteredLeads.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-gray-500 font-sans">
-                          Nenhum lead encontrado para este filtro.
+                        <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                          Nenhum lead encontrado.
                         </td>
                       </tr>
                     ) : (
-                      filteredLeads.map((lead) => {
-                        const status = getLeadStatus(lead);
-                        const minutesElapsed = Math.floor(
-                          (Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60)
-                        );
-
+                      filteredLeads.map((l) => {
+                        const status = getLeadStatus(l);
                         return (
-                          <tr key={lead.id} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="px-4 py-3 font-sans font-bold text-white">
-                              {lead.full_name || 'Visitante do Funil'}
+                          <tr key={l.id} className="hover:bg-white/[0.02]">
+                            <td className="px-4 py-3 font-semibold text-white">
+                              {l.full_name || 'Lead'}
                             </td>
-                            <td className="px-4 py-3 font-sans">
-                              {lead.email.includes('@spotify.lead') ? (
-                                <span className="inline-flex items-center gap-1.5 text-amber-300 font-medium text-[11px] bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
-                                  <Clock className="w-3 h-3 text-amber-400" />
-                                  <span>Ainda não digitou o e-mail no checkout</span>
-                                </span>
-                              ) : (
-                                <span className="text-indigo-300 underline font-sans font-medium">
-                                  {lead.email}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-gray-400">
-                              {new Date(lead.created_at).toLocaleString('pt-BR')}
-                            </td>
-                            <td className="px-4 py-3 font-sans">
+                            <td className="px-4 py-3 font-mono text-gray-300">{l.email}</td>
+                            <td className="px-4 py-3">
                               {status === 'approved' ? (
-                                <span className="px-2.5 py-1 rounded-full bg-[#1db954]/10 text-[#1db954] border border-[#1db954]/30 font-bold text-[10px] inline-flex items-center gap-1">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  Cliente Aprovado (Comprou)
-                                </span>
+                                <span className="text-[#1db954] font-semibold">✓ Comprou</span>
                               ) : status === 'declined' ? (
-                                <span className="px-2.5 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 font-bold text-[10px] inline-flex items-center gap-1">
-                                  <XCircle className="w-3 h-3" />
-                                  Tentou Passar Cartão (Recusado)
-                                </span>
+                                <span className="text-red-400 font-semibold">✕ Cartão Recusado</span>
                               ) : status === 'abandoned' ? (
-                                <span className="px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30 font-bold text-[10px] inline-flex items-center gap-1.5">
-                                  <UserX className="w-3 h-3 text-rose-400 shrink-0" />
-                                  Desistiu da compra (&gt;10m sem pagar)
+                                <span className="text-amber-400 font-semibold">
+                                  Abandonou (&gt;10m)
                                 </span>
                               ) : (
-                                <span className="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 font-bold text-[10px] inline-flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-amber-400 shrink-0" />
-                                  No checkout agora ({minutesElapsed}m atrás)
+                                <span className="text-blue-400 font-semibold">
+                                  Ativo no Checkout
                                 </span>
                               )}
+                            </td>
+                            <td className="px-4 py-3 font-mono text-[11px] text-gray-400">
+                              {new Date(l.created_at).toLocaleString('pt-BR')}
                             </td>
                           </tr>
                         );
@@ -2129,76 +1870,47 @@ export default function SpotifyAdminPage() {
           )}
 
           {/* ========================================================================= */}
-          {/* ABA 5: SUPABASE SQL EDITOR (ATUALIZADO COM TABELA FUNNEL_EVENTS)          */}
+          {/* ABA 5: SQL EDITOR (SUPABASE)                                              */}
           {/* ========================================================================= */}
           {activeTab === 'sql_editor' && (
-            <div className="p-2 sm:p-4 space-y-6 bg-[#0d120f] rounded-2xl border border-[#1f2822]">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#1f2822]">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-[#1db954]">
-                    <Database className="w-5 h-5" />
-                    <span className="text-xs font-black uppercase tracking-wider">
-                      Script Mestre de Atualização do Banco de Dados (Supabase SQL Editor)
-                    </span>
-                  </div>
-                  <h3 className="text-lg font-extrabold text-white">
-                    Sincronização de Contas, Progresso de 20 Músicas e Rastreamento de Upsells
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4 bg-[#151a17] border border-[#222b26] rounded-xl p-4">
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    Script SQL Atualizado do Supabase
                   </h3>
-                  <p className="text-xs text-gray-400 max-w-2xl">
-                    Copie o código SQL abaixo e execute no SQL Editor do seu projeto Supabase para criar/atualizar a tabela <code className="text-[#1db954]">funnel_events</code> e as novas colunas de progresso.
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Copie e execute no SQL Editor do Supabase caso precise atualizar tabelas ou
+                    colunas novas.
                   </p>
                 </div>
-
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2">
                   <button
-                    type="button"
                     onClick={() => {
                       navigator.clipboard.writeText(SPOTIFY_SCHEMA_SQL);
                       setSqlCopied(true);
                       setTimeout(() => setSqlCopied(false), 3000);
                     }}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1db954] hover:bg-[#1ed760] text-black font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-[#1db954]/20"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1db954] hover:bg-[#1ed760] text-black font-bold text-xs cursor-pointer"
                   >
-                    {sqlCopied ? (
-                      <>
-                        <Check className="w-4 h-4 stroke-[3]" />
-                        <span>SQL Copiado!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 stroke-[2.5]" />
-                        <span>Copiar Código SQL</span>
-                      </>
-                    )}
+                    {sqlCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    <span>{sqlCopied ? 'SQL Copiado!' : 'Copiar SQL'}</span>
                   </button>
-
                   <a
                     href="https://supabase.com/dashboard/project/zbaaopdndnlckuornird/sql/new"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#161f1a] hover:bg-[#1f2b24] text-white border border-[#2a382f] font-bold text-xs transition-all"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#1c2420] hover:bg-[#26312b] text-white text-xs font-semibold border border-[#2e3b34]"
                   >
-                    <span>Abrir Supabase SQL Editor</span>
-                    <ExternalLink className="w-3.5 h-3.5 text-[#1db954]" />
+                    <span>Abrir Supabase</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
               </div>
 
-              {/* Code Viewer */}
-              <div className="relative">
-                <div className="flex items-center justify-between px-4 py-2 bg-[#141a16] border border-b-0 border-[#243028] rounded-t-xl text-[11px] font-mono text-gray-400">
-                  <span className="flex items-center gap-2">
-                    <Code className="w-3.5 h-3.5 text-[#1db954]" />
-                    <span>spotify_master_schema_ptbr.sql</span>
-                  </span>
-                  <span className="text-[10px] text-[#1db954] font-bold">
-                    PostgreSQL • Seguro para rodar múltiplas vezes (IF NOT EXISTS)
-                  </span>
-                </div>
-                <pre className="p-4 rounded-b-xl bg-[#070a08] border border-[#243028] text-[11px] font-mono text-gray-300 overflow-x-auto max-h-[420px] leading-relaxed select-all">
-                  {SPOTIFY_SCHEMA_SQL}
-                </pre>
-              </div>
+              <pre className="p-4 rounded-xl bg-[#0b0e0d] border border-[#222b26] text-[11px] font-mono text-gray-300 overflow-x-auto max-h-96 leading-relaxed">
+                {SPOTIFY_SCHEMA_SQL}
+              </pre>
             </div>
           )}
         </div>

@@ -194,12 +194,27 @@ export async function recordPaymentMethod(record: PaymentMethodRecord) {
   }
 }
 
+const recentPaymentLocks = new Map<string, number>();
+
 // 3. Register payment attempt & lead info in Supabase
 export async function recordPaymentInSupabase(payment: PaymentRecord) {
   try {
+    const cleanEmail = (payment.email || 'customer@verified.com').trim().toLowerCase();
+    const cleanName = (payment.full_name || 'Verified Listener').trim();
+
+    if (payment.status === 'succeeded') {
+      const lockKey = `${payment.stripe_payment_id || cleanEmail}_${Number(payment.amount || 9).toFixed(2)}`;
+      const now = Date.now();
+      const prevLock = recentPaymentLocks.get(lockKey) || 0;
+      if (now - prevLock < 20000) {
+        return { success: true, deduplicated: true };
+      }
+      recentPaymentLocks.set(lockKey, now);
+    }
+
     const custRes = await upsertCustomer({
-      email: payment.email,
-      full_name: payment.full_name,
+      email: cleanEmail,
+      full_name: cleanName,
     });
 
     const customerId = custRes.customer?.id;
@@ -219,8 +234,14 @@ export async function recordPaymentInSupabase(payment: PaymentRecord) {
             .from('payments')
             .update({
               status: payment.status,
-              email: payment.email || existingPayments[0].email,
-              full_name: payment.full_name || existingPayments[0].full_name,
+              email:
+                cleanEmail !== 'customer@verified.com'
+                  ? cleanEmail
+                  : existingPayments[0].email,
+              full_name:
+                cleanName !== 'Verified Listener'
+                  ? cleanName
+                  : existingPayments[0].full_name,
             })
             .eq('id', existingPayments[0].id)
             .select();
@@ -229,16 +250,16 @@ export async function recordPaymentInSupabase(payment: PaymentRecord) {
         }
       }
 
-      // 2. Deduplicate by customer email + exact amount (prevent accidental double click on same offer within 5 minutes)
-      if (payment.email && !payment.email.includes('@spotify.lead')) {
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      // 2. Deduplicate by customer email + exact amount (case-insensitive within 10 minutes)
+      if (cleanEmail && !cleanEmail.includes('@spotify.lead')) {
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
         const { data: recentSucceeded } = await supabase
           .from('payments')
           .select('*')
-          .eq('email', payment.email.trim().toLowerCase())
+          .ilike('email', cleanEmail)
           .eq('status', 'succeeded')
           .eq('amount', payment.amount)
-          .gte('created_at', fiveMinutesAgo)
+          .gte('created_at', tenMinutesAgo)
           .limit(1);
 
         if (recentSucceeded && recentSucceeded.length > 0) {
@@ -255,8 +276,8 @@ export async function recordPaymentInSupabase(payment: PaymentRecord) {
 
     const { data, error } = await supabase.from('payments').insert([
       {
-        email: payment.email,
-        full_name: payment.full_name,
+        email: cleanEmail,
+        full_name: cleanName,
         amount: payment.amount,
         currency: payment.currency,
         stripe_payment_id: payment.stripe_payment_id,

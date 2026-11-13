@@ -135,8 +135,7 @@ export function ensurePixelsInitialized(resolvedEmail?: string, resolvedName?: s
 }
 
 /**
- * Fires an event on TikTok Pixel + Meta Pixel + Server-Side CAPI.
- * Can be called imperatively on button clicks, form submissions, and approved purchases.
+ * Fires an event on TikTok Pixel + Meta Pixel + Server-Side CAPI with strict anti-duplicate protection.
  */
 export function trackFunnelPixelEvent(
   eventName: string,
@@ -162,25 +161,71 @@ export function trackFunnelPixelEvent(
 
   ensurePixelsInitialized(resolvedEmail, resolvedName);
 
-  const eventId = 'ev_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
   const valueNum =
     typeof customData?.value === 'number'
       ? customData.value
       : parseFloat(String(customData?.value || '0')) || 0;
   const currency = (customData?.currency || 'USD').toUpperCase();
-  const contentId = customData?.content_id || customData?.offer_id || 'spotify_rewards_pass';
-  const contentName = customData?.content_name || 'Spotify Evaluator Pass';
+  const contentId = customData?.content_id || customData?.offer_id || 'front_9_00';
+  const contentName = customData?.content_name || 'Anti-Spam Security Pass';
+  const cleanEmailKey = (resolvedEmail || 'guest').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
-  // 1. Fire Meta Pixel
+  const isPurchaseEvent = eventName === 'Purchase' || eventName === 'CompletePayment';
+
+  // STRICT ANTI-DUPLICATE LOCK FOR PURCHASES & CHECKOUTS
+  if (isPurchaseEvent) {
+    const lockKeyId = `pixel_purchase_fired_${contentId}`;
+    const lockKeyName = `pixel_purchase_fired_${contentName}`;
+    const lockKeyTimestamp = `pixel_purchase_ts_${contentId}_${cleanEmailKey}`;
+    const lastFiredTs = Number(localStorage.getItem(lockKeyTimestamp) || '0');
+    const now = Date.now();
+
+    if (
+      sessionStorage.getItem(lockKeyId) === 'true' ||
+      sessionStorage.getItem(lockKeyName) === 'true' ||
+      (lastFiredTs > 0 && now - lastFiredTs < 10 * 60 * 1000)
+    ) {
+      return; // Already tracked this purchase — never fire a duplicate!
+    }
+
+    sessionStorage.setItem(lockKeyId, 'true');
+    sessionStorage.setItem(lockKeyName, 'true');
+    localStorage.setItem(lockKeyTimestamp, String(now));
+  } else if (eventName === 'InitiateCheckout') {
+    const checkoutLockKey = `pixel_checkout_fired_${contentId}`;
+    if (sessionStorage.getItem(checkoutLockKey) === 'true') {
+      return;
+    }
+    sessionStorage.setItem(checkoutLockKey, 'true');
+  }
+
+  // Deterministic eventId for Purchase so Meta Browser Pixel & Server CAPI deduplicate 100% into 1 single event
+  const timeBucket = Math.floor(Date.now() / (10 * 60 * 1000));
+  const eventId = isPurchaseEvent
+    ? `pur_${contentId}_${cleanEmailKey}_${timeBucket}`
+    : `ev_${eventName}_${contentId}_${Date.now()}`;
+
+  const normalizedCustomData = {
+    content_ids: [contentId],
+    content_id: contentId,
+    content_name: contentName,
+    content_type: customData?.content_type || 'product',
+    value: valueNum,
+    currency,
+    num_items: customData?.num_items || 1,
+  };
+
+  // 1. Fire Meta Pixel (Browser) with exact eventID for CAPI deduplication
   if (win.fbq) {
     if (eventName === 'PageView') {
-      win.fbq('track', 'PageView');
+      win.fbq('track', 'PageView', {}, { eventID: eventId });
     } else {
-      win.fbq('track', eventName, customData || {}, { eventID: eventId });
+      const fbEventName = isPurchaseEvent ? 'Purchase' : eventName;
+      win.fbq('track', fbEventName, normalizedCustomData, { eventID: eventId });
     }
   }
 
-  // 2. Fire TikTok Pixel (DBRAD8BC77U7CBT5UTL0)
+  // 2. Fire TikTok Pixel (DBRAD8BC77U7CBT5UTL0) — Single canonical event per action
   if (win.ttq) {
     const ttPayload: Record<string, any> = {
       content_id: contentId,
@@ -201,39 +246,34 @@ export function trackFunnelPixelEvent(
 
     if (eventName === 'PageView') {
       win.ttq.page();
-      win.ttq.track('ViewContent', ttPayload);
     } else if (eventName === 'ViewContent') {
       win.ttq.track('ViewContent', ttPayload);
     } else if (eventName === 'Lead' || eventName === 'CompleteRegistration') {
       win.ttq.track('CompleteRegistration', ttPayload);
-      win.ttq.track('SubmitForm', ttPayload);
-      win.ttq.track('Lead', ttPayload);
     } else if (eventName === 'AddToCart') {
       win.ttq.track('AddToCart', ttPayload);
     } else if (eventName === 'InitiateCheckout') {
       win.ttq.track('InitiateCheckout', ttPayload);
     } else if (eventName === 'AddPaymentInfo') {
       win.ttq.track('AddPaymentInfo', ttPayload);
-    } else if (eventName === 'Purchase' || eventName === 'CompletePayment') {
-      // Fire standard TikTok CompletePayment, Purchase, and PlaceAnOrder so all campaign objectives track the sale
-      win.ttq.track('CompletePayment', ttPayload);
-      win.ttq.track('Purchase', ttPayload);
-      win.ttq.track('PlaceAnOrder', ttPayload);
+    } else if (isPurchaseEvent) {
+      // Fire ONLY CompletePayment (TikTok's official purchase event) so TikTok never double-counts
+      win.ttq.track('CompletePayment', ttPayload, { event_id: eventId });
     } else {
       win.ttq.track(eventName, ttPayload);
     }
   }
 
-  // 3. Fire Server-Side Conversions API (CAPI)
+  // 3. Fire Server-Side Conversions API (CAPI) with the EXACT SAME event_id and custom_data
   try {
     fetch('/api/capi', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        event_name: eventName,
+        event_name: isPurchaseEvent ? 'Purchase' : eventName,
         event_source_url: window.location.href,
         event_id: eventId,
-        custom_data: customData,
+        custom_data: normalizedCustomData,
         user_data: {
           ...(userData || {}),
           ...(resolvedEmail ? { email: resolvedEmail } : {}),
@@ -253,6 +293,9 @@ export default function MetaPixelTracker({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      if (hasSentRef.current) return;
+      hasSentRef.current = true;
+
       const resolvedEmail =
         userData?.email ||
         userData?.em ||
@@ -271,83 +314,17 @@ export default function MetaPixelTracker({
 
       ensurePixelsInitialized(resolvedEmail, resolvedName);
 
-      const win = window as any;
-
-      // Always track standard PageView on both Meta and TikTok
-      if (win.fbq) {
-        win.fbq('track', 'PageView');
-      }
-      if (win.ttq) {
-        win.ttq.page();
-      }
-
-      if (hasSentRef.current) return;
-      hasSentRef.current = true;
-
-      const offerKey = customData?.content_id || customData?.content_name || 'default';
-      let isAlreadyFired = false;
-
-      if (eventName === 'Purchase') {
-        const storageKey = `pixel_purchase_fired_${offerKey}`;
-        if (sessionStorage.getItem(storageKey) === 'true') {
-          isAlreadyFired = true;
-        } else {
-          sessionStorage.setItem(storageKey, 'true');
-        }
-      } else if (eventName === 'InitiateCheckout') {
-        const storageKey = `pixel_checkout_fired_${offerKey}`;
-        if (sessionStorage.getItem(storageKey) === 'true') {
-          isAlreadyFired = true;
-        } else {
-          sessionStorage.setItem(storageKey, 'true');
-        }
-      }
-
-      if (!isAlreadyFired) {
-        if (eventName && eventName !== 'PageView') {
-          trackFunnelPixelEvent(eventName, customData, userData);
-        } else {
-          // For PageView, still fire ViewContent on TikTok and CAPI PageView
-          if (win.ttq) {
-            win.ttq.track('ViewContent', {
-              content_id: customData?.content_id || 'spotify_landing',
-              content_type: 'product',
-              content_name: customData?.content_name || 'Spotify Evaluator Program',
-              value: customData?.value || 9.0,
-              currency: customData?.currency || 'USD',
-            });
-          }
-          try {
-            fetch('/api/capi', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                event_name: 'PageView',
-                event_source_url: window.location.href,
-                event_id: 'ev_' + Date.now() + '_' + Math.floor(Math.random() * 100000),
-                custom_data: customData,
-                user_data: {
-                  ...(userData || {}),
-                  ...(resolvedEmail ? { email: resolvedEmail } : {}),
-                  ...(resolvedName ? { full_name: resolvedName } : {}),
-                },
-              }),
-            }).catch(() => {});
-          } catch {}
-        }
+      if (eventName && eventName !== 'PageView') {
+        // Also track PageView first, then the specific event via unified deduplicated helper
+        const win = window as any;
+        if (win.fbq) win.fbq('track', 'PageView');
+        if (win.ttq) win.ttq.page();
+        trackFunnelPixelEvent(eventName, customData, userData);
+      } else {
+        trackFunnelPixelEvent('PageView', customData, userData);
       }
     }
   }, [eventName, customData, userData]);
 
-  return (
-    <noscript>
-      <img
-        height="1"
-        width="1"
-        style={{ display: 'none' }}
-        src={`https://www.facebook.com/tr?id=${META_PIXEL_ID}&ev=${eventName}&noscript=1`}
-        alt=""
-      />
-    </noscript>
-  );
+  return null;
 }

@@ -4,13 +4,13 @@ import { sendPushcutNotification } from '@/lib/pushcut';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { type, name, email } = body;
+    const { type, name, email, offerId, paymentIntentId } = body;
 
     if (type !== 'approved' && type !== 'pending') {
       return NextResponse.json({ error: 'Invalid notification type' }, { status: 400 });
     }
 
-    await sendPushcutNotification(type, { name, email });
+    await sendPushcutNotification(type, { name, email, offerId, paymentIntentId });
     return NextResponse.json({ success: true, type });
   } catch (error: any) {
     return NextResponse.json(

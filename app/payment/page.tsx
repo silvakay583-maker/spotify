@@ -1122,6 +1122,7 @@ function PaymentPageContent() {
           type: 'pending',
           name: cleanName,
           email: cleanEmail,
+          offerId: activeOfferId,
         }),
       }).catch(() => {});
     }, 650);
@@ -1228,7 +1229,7 @@ function PaymentPageContent() {
         localStorage.setItem('spotify_payment_date', nowIso);
       }
 
-      // Dispatch Pushcut "Venda Aprovada" notification
+      // Dispatch Pushcut "Venda Aprovada" notification (deduplicated client + server)
       const approvedStorageKey = `pushcut_approved_${activeOfferId}_${finalEmail.toLowerCase()}`;
       if (sessionStorage.getItem(approvedStorageKey) !== 'true') {
         sessionStorage.setItem(approvedStorageKey, 'true');
@@ -1239,6 +1240,7 @@ function PaymentPageContent() {
             type: 'approved',
             name: finalName,
             email: finalEmail,
+            offerId: activeOfferId,
           }),
         }).catch(() => {});
       }

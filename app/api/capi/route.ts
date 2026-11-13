@@ -6,6 +6,15 @@ const ACCESS_TOKEN =
   process.env.FB_ACCESS_TOKEN ||
   'EAFtzlL3kRtwBS6iKee6lBshC2v8VDcKe7jvU2N5sJJ8bzoqM5hcZApptlUkOY633AmE3KZAdVdf0Ag6I6aZBzkDYflTdJ9shzEqKNGW5a6KPoiHVCfmqgyWuW5vHZALUsfy9RcBgtPsQxuLD6vdgisuRZAeeGdhODN4BFJZA3gpWwJUvkcgFoTcDKTuKO4wwZDZD';
 
+// Server-side deduplication cache for CAPI event_ids
+const globalForCapi = globalThis as unknown as {
+  __capiEventLock?: Map<string, number>;
+};
+
+if (!globalForCapi.__capiEventLock) {
+  globalForCapi.__capiEventLock = new Map<string, number>();
+}
+
 function hashData(val: string | undefined): string | undefined {
   if (!val || typeof val !== 'string' || !val.trim()) return undefined;
   return crypto.createHash('sha256').update(val.trim().toLowerCase()).digest('hex');
@@ -15,6 +24,19 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { event_name, event_source_url, event_id, custom_data, user_data } = body;
+
+    const lockMap = globalForCapi.__capiEventLock!;
+    const now = Date.now();
+    for (const [k, ts] of lockMap.entries()) {
+      if (now - ts > 15 * 60 * 1000) lockMap.delete(k);
+    }
+
+    if (event_id && lockMap.has(event_id)) {
+      return NextResponse.json({ success: true, deduplicated: true });
+    }
+    if (event_id) {
+      lockMap.set(event_id, now);
+    }
 
     const clientIp =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -43,7 +65,7 @@ export async function POST(req: NextRequest) {
           event_name: event_name || 'Purchase',
           event_time: Math.floor(Date.now() / 1000),
           action_source: 'website',
-          event_source_url: event_source_url || 'https://nextofferspot.com/spotify/welcome',
+          event_source_url: event_source_url || 'https://nextofferspot.com/payment',
           event_id: event_id || undefined,
           user_data: {
             client_ip_address: clientIp,
