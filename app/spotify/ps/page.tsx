@@ -43,7 +43,7 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
     badge: 'Question 1 of 4 • Listening Habits',
     question: 'Do you enjoy listening to music in your daily routine?',
     subtitle:
-      'Before we introduce you to the Spotify Rewards program, let us know how often you listen to music or audio content.',
+      'Let us know how often you listen to music, playlists, or audio content during the week.',
     options: [
       { label: 'Yes, I listen to music every single day', sublabel: 'Daily active listener' },
       { label: 'Yes, several times a week', sublabel: 'Regular weekly listener' },
@@ -78,17 +78,17 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
     id: 'partner_interest',
     badge: 'Question 4 of 4 • Program Eligibility',
     question:
-      'Would you be interested in becoming an official Listener Partner in the Spotify Rewards program?',
+      'Would you be interested in participating as an official Spotify Listener Partner?',
     subtitle:
       'As a participant, you listen to selected songs from partner artists and share quick feedback directly from your phone.',
     options: [
       {
         label: 'Yes, I want to learn more and start now',
-        sublabel: 'Immediate access to the Rewards program',
+        sublabel: 'Immediate access to the listener session',
       },
       {
         label: 'Yes, I am interested in participating',
-        sublabel: 'Proceed to program presentation',
+        sublabel: 'Proceed to interactive presentation',
       },
     ],
   },
@@ -156,7 +156,7 @@ export default function SpotifyPresellPage() {
         eventName="PageView"
         customData={{
           content_id: 'spotify_presell_ps',
-          content_name: 'Spotify Rewards Presell Quiz',
+          content_name: 'Spotify Listener Presell Quiz',
           content_type: 'product',
         }}
       />
@@ -193,13 +193,13 @@ export default function SpotifyPresellPage() {
               style={{ textWrap: 'balance' }}
               className="text-2xl sm:text-3xl font-bold tracking-tight text-white leading-snug max-w-lg"
             >
-              Before we introduce you to the{' '}
-              <span className="text-[#1ED760]">Spotify Rewards</span> program
+              Complete your quick{' '}
+              <span className="text-[#1ED760]">Spotify Listener</span> profile
             </h1>
 
             <p className="mt-2 text-xs sm:text-sm text-[#A7A7A7] max-w-md leading-relaxed">
-              Answer 4 quick questions about your music listening profile to unlock access to the
-              interactive presentation.
+              Answer 4 quick questions about your music listening habits to unlock access to the
+              interactive session.
             </p>
           </div>
 
@@ -286,7 +286,7 @@ export default function SpotifyPresellPage() {
                   Submitting your listener profile...
                 </h3>
                 <p className="text-xs sm:text-sm text-[#A7A7A7] max-w-sm">
-                  Preparing your interactive session for the official Spotify Rewards program.
+                  Preparing your interactive session for the official Spotify Listener program.
                 </p>
               </div>
             )}
@@ -304,7 +304,7 @@ export default function SpotifyPresellPage() {
 
                 <p className="text-xs sm:text-sm text-[#A7A7A7] max-w-md leading-relaxed mb-6">
                   Thank you for completing the listener survey. You are now being redirected to the{' '}
-                  <span className="text-white font-semibold">Spotify Rewards</span> interactive
+                  <span className="text-white font-semibold">Spotify Listener</span> interactive
                   experience.
                 </p>
 
@@ -312,7 +312,7 @@ export default function SpotifyPresellPage() {
                   href={targetHref}
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-full bg-[#1ED760] hover:bg-[#1fdf64] text-black font-bold text-sm sm:text-base transition-all shadow-[0_6px_25px_rgba(30,215,96,0.3)] whitespace-nowrap"
                 >
-                  <span>Continue to Spotify Rewards</span>
+                  <span>Continue to Session</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
